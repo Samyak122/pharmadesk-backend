@@ -54,13 +54,6 @@ const Purchase = sequelize.define(
   {
     tableName: "purchases",
     timestamps: false,
-    indexes: [
-      {
-        unique: true,
-        name: "purchases_pharmacy_invoice_no_unique",
-        fields: ["pharmacy_id", "invoice_no"],
-      },
-    ],
   }
 );
 

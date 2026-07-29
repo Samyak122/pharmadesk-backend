@@ -29,14 +29,6 @@ async function createPurchase(payload, pharmacyId) {
     throw new Error("Supplier not found.");
   }
 
-  const existingPurchase = await Purchase.findOne({
-    where: { pharmacy_id: pharmacyId, invoice_no },
-  });
-
-  if (existingPurchase) {
-    throw new Error("Purchase number already exists in your pharmacy.");
-  }
-
   const summary = calculatePurchaseSummary(items);
   const purchase = await Purchase.create({
     supplier_id: supplier_id || null,

@@ -138,10 +138,6 @@ ALTER TABLE invoices
   ADD CONSTRAINT invoices_pharmacy_invoice_no_unique UNIQUE (pharmacy_id, invoice_no);
 
 -- Purchases
-ALTER TABLE purchases
-  DROP CONSTRAINT IF EXISTS purchases_pharmacy_invoice_no_unique;
-
-ALTER TABLE purchases
-  ADD CONSTRAINT purchases_pharmacy_invoice_no_unique UNIQUE (pharmacy_id, invoice_no);
+-- invoice_no is treated as a supplier/reference field and is not enforced as unique.
 
 COMMIT;
