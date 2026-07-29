@@ -80,7 +80,8 @@ const Inventory = sequelize.define(
       },
       {
         unique: true,
-        fields: ["medicine_id", "batch_no", "is_active"],
+        name: "inventory_pharmacy_batch_unique",
+        fields: ["pharmacy_id", "batch_no"],
       },
     ],
   }

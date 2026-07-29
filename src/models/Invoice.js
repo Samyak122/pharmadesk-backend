@@ -22,7 +22,6 @@ const Invoice = sequelize.define(
     invoice_no: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      unique: true,
     },
     invoice_date: {
       type: DataTypes.DATEONLY,
@@ -69,6 +68,13 @@ const Invoice = sequelize.define(
   {
     tableName: "invoices",
     timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        name: "invoices_pharmacy_invoice_no_unique",
+        fields: ["pharmacy_id", "invoice_no"],
+      },
+    ],
   }
 );
 

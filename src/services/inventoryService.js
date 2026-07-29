@@ -156,6 +156,14 @@ async function searchStock(query, pharmacyId) {
 }
 
 async function createInventory(payload, pharmacyId) {
+  const existingBatch = await Inventory.findOne({
+    where: { pharmacy_id: pharmacyId, batch_no: payload.batch_no },
+  });
+
+  if (existingBatch) {
+    throw new Error("Inventory batch with this batch number already exists in your pharmacy.");
+  }
+
   return Inventory.create({ ...payload, pharmacy_id: pharmacyId });
 }
 
@@ -166,6 +174,16 @@ async function updateInventory(stockId, payload, pharmacyId) {
 
   if (!batch) {
     return null;
+  }
+
+  if (payload.batch_no && payload.batch_no !== batch.batch_no) {
+    const duplicateBatch = await Inventory.findOne({
+      where: { pharmacy_id: pharmacyId, batch_no: payload.batch_no, stock_id: { [Op.ne]: stockId } },
+    });
+
+    if (duplicateBatch) {
+      throw new Error("Inventory batch with this batch number already exists in your pharmacy.");
+    }
   }
 
   await batch.update(payload);

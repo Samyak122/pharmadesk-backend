@@ -6,7 +6,8 @@ exports.createCustomer = async (req, res) => {
     res.status(201).json({ message: "Customer created successfully", data: customer });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server Error" });
+    const status = error.message && error.message.includes("already exists") ? 400 : 500;
+    res.status(status).json({ message: error.message || "Server Error" });
   }
 };
 
@@ -44,7 +45,8 @@ exports.updateCustomer = async (req, res) => {
     res.json({ message: "Customer updated successfully", data: updated });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server Error" });
+    const status = error.message && error.message.includes("already exists") ? 400 : 500;
+    res.status(status).json({ message: error.message || "Server Error" });
   }
 };
 

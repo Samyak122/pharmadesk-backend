@@ -29,6 +29,26 @@ function calculateCustomerStats(history = []) {
 }
 
 async function createCustomer(payload, pharmacyId) {
+  if (payload.phone) {
+    const existingPhone = await Customer.findOne({
+      where: { pharmacy_id: pharmacyId, phone: payload.phone },
+    });
+
+    if (existingPhone) {
+      throw new Error("Customer with this phone number already exists in your pharmacy.");
+    }
+  }
+
+  if (payload.email) {
+    const existingEmail = await Customer.findOne({
+      where: { pharmacy_id: pharmacyId, email: payload.email },
+    });
+
+    if (existingEmail) {
+      throw new Error("Customer with this email already exists in your pharmacy.");
+    }
+  }
+
   return Customer.create({ ...payload, pharmacy_id: pharmacyId });
 }
 
@@ -55,6 +75,26 @@ async function updateCustomer(customerId, payload, pharmacyId) {
   const customer = await Customer.findOne({ where: { customer_id: customerId, pharmacy_id: pharmacyId } });
   if (!customer) {
     return null;
+  }
+
+  if (payload.phone && payload.phone !== customer.phone) {
+    const duplicatePhone = await Customer.findOne({
+      where: { pharmacy_id: pharmacyId, phone: payload.phone, customer_id: { [Op.ne]: customerId } },
+    });
+
+    if (duplicatePhone) {
+      throw new Error("Customer with this phone number already exists in your pharmacy.");
+    }
+  }
+
+  if (payload.email && payload.email !== customer.email) {
+    const duplicateEmail = await Customer.findOne({
+      where: { pharmacy_id: pharmacyId, email: payload.email, customer_id: { [Op.ne]: customerId } },
+    });
+
+    if (duplicateEmail) {
+      throw new Error("Customer with this email already exists in your pharmacy.");
+    }
   }
 
   await customer.update(payload);

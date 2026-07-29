@@ -46,6 +46,14 @@ async function createInvoice(payload, pharmacyId) {
     }
   }
 
+  const existingInvoice = await Invoice.findOne({
+    where: { pharmacy_id: pharmacyId, invoice_no },
+  });
+
+  if (existingInvoice) {
+    throw new Error("Invoice number already exists in your pharmacy.");
+  }
+
   const totals = calculateBillTotals(items, gst_percent);
   const transaction = await sequelize.transaction();
 

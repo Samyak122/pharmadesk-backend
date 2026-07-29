@@ -9,7 +9,7 @@ exports.createPurchase = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    const status = error.message.includes("not found") || error.message.includes("required") ? 400 : 500;
+    const status = error.message.includes("not found") || error.message.includes("required") || error.message.includes("already exists") ? 400 : 500;
     res.status(status).json({ message: error.message || "Server Error" });
   }
 };

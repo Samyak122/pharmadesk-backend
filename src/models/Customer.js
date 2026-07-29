@@ -17,7 +17,6 @@ const Customer = sequelize.define(
     phone: {
       type: DataTypes.STRING(30),
       allowNull: false,
-      unique: true,
     },
     email: {
       type: DataTypes.STRING(150),
@@ -48,6 +47,18 @@ const Customer = sequelize.define(
   {
     tableName: "customers",
     timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        name: "customers_pharmacy_phone_unique",
+        fields: ["pharmacy_id", "phone"],
+      },
+      {
+        unique: true,
+        name: "customers_pharmacy_email_unique",
+        fields: ["pharmacy_id", "email"],
+      },
+    ],
   }
 );
 

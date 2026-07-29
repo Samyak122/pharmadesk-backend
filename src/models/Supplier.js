@@ -47,6 +47,23 @@ const Supplier = sequelize.define(
   {
     tableName: "suppliers",
     timestamps: false,
+    indexes: [
+      {
+        unique: true,
+        name: "suppliers_pharmacy_phone_unique",
+        fields: ["pharmacy_id", "phone"],
+      },
+      {
+        unique: true,
+        name: "suppliers_pharmacy_email_unique",
+        fields: ["pharmacy_id", "email"],
+      },
+      {
+        unique: true,
+        name: "suppliers_pharmacy_gstin_unique",
+        fields: ["pharmacy_id", "gstin"],
+      },
+    ],
   }
 );
 

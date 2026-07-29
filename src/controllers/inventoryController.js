@@ -49,7 +49,8 @@ exports.createInventory = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server Error" });
+    const status = error.message && error.message.includes("already exists") ? 400 : 500;
+    res.status(status).json({ message: error.message || "Server Error" });
   }
 };
 
@@ -94,7 +95,8 @@ exports.updateInventory = async (req, res) => {
     res.json({ message: "Inventory updated successfully", data: updated });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server Error" });
+    const status = error.message && error.message.includes("already exists") ? 400 : 500;
+    res.status(status).json({ message: error.message || "Server Error" });
   }
 };
 
