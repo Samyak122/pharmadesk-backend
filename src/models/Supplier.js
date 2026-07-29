@@ -58,11 +58,6 @@ const Supplier = sequelize.define(
         name: "suppliers_pharmacy_email_unique",
         fields: ["pharmacy_id", "email"],
       },
-      {
-        unique: true,
-        name: "suppliers_pharmacy_gstin_unique",
-        fields: ["pharmacy_id", "gstin"],
-      },
     ],
   }
 );

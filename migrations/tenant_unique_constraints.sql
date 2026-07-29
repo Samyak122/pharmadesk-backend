@@ -89,31 +89,15 @@ BEGIN
   END IF;
 END $$;
 
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conrelid = 'suppliers'::regclass
-      AND conname = 'suppliers_gstin_key'
-  ) THEN
-    ALTER TABLE suppliers DROP CONSTRAINT suppliers_gstin_key;
-  END IF;
-END $$;
-
 ALTER TABLE suppliers
   DROP CONSTRAINT IF EXISTS suppliers_pharmacy_phone_unique,
-  DROP CONSTRAINT IF EXISTS suppliers_pharmacy_email_unique,
-  DROP CONSTRAINT IF EXISTS suppliers_pharmacy_gstin_unique;
+  DROP CONSTRAINT IF EXISTS suppliers_pharmacy_email_unique;
 
 ALTER TABLE suppliers
   ADD CONSTRAINT suppliers_pharmacy_phone_unique UNIQUE (pharmacy_id, phone);
 
 ALTER TABLE suppliers
   ADD CONSTRAINT suppliers_pharmacy_email_unique UNIQUE (pharmacy_id, email);
-
-ALTER TABLE suppliers
-  ADD CONSTRAINT suppliers_pharmacy_gstin_unique UNIQUE (pharmacy_id, gstin);
 
 -- Inventory
 DO $$
