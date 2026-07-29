@@ -53,7 +53,7 @@ sequelize
   .then(async () => {
     console.log("✅ Database Connected Successfully");
 
-    await sequelize.sync({ alter: true });
+    await sequelize.sync();
     console.log("✅ Database synced");
 
     app.listen(PORT, () => {
