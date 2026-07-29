@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
+const Pharmacy = require("./Pharmacy");
 
 const Customer = sequelize.define(
   "Customer",
@@ -30,6 +31,14 @@ const Customer = sequelize.define(
       type: DataTypes.DATEONLY,
       allowNull: true,
     },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
+    },
     is_active: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -41,5 +50,15 @@ const Customer = sequelize.define(
     timestamps: false,
   }
 );
+
+Customer.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
+Pharmacy.hasMany(Customer, {
+  foreignKey: "pharmacy_id",
+  as: "customers",
+});
 
 module.exports = Customer;

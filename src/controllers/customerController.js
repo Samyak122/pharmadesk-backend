@@ -2,7 +2,7 @@ const customerService = require("../services/customerService");
 
 exports.createCustomer = async (req, res) => {
   try {
-    const customer = await customerService.createCustomer(req.body);
+    const customer = await customerService.createCustomer(req.body, req.user?.pharmacy_id);
     res.status(201).json({ message: "Customer created successfully", data: customer });
   } catch (error) {
     console.error(error);
@@ -12,7 +12,7 @@ exports.createCustomer = async (req, res) => {
 
 exports.listCustomers = async (req, res) => {
   try {
-    const customers = await customerService.listCustomers(req.query.search || "");
+    const customers = await customerService.listCustomers(req.query.search || "", req.user?.pharmacy_id);
     res.json(customers);
   } catch (error) {
     console.error(error);
@@ -22,7 +22,7 @@ exports.listCustomers = async (req, res) => {
 
 exports.getCustomerById = async (req, res) => {
   try {
-    const customer = await customerService.getCustomerById(Number(req.params.customer_id));
+    const customer = await customerService.getCustomerById(Number(req.params.customer_id), req.user?.pharmacy_id);
     if (!customer) {
       return res.status(404).json({ message: "Customer not found" });
     }
@@ -36,7 +36,7 @@ exports.getCustomerById = async (req, res) => {
 
 exports.updateCustomer = async (req, res) => {
   try {
-    const updated = await customerService.updateCustomer(Number(req.params.customer_id), req.body);
+    const updated = await customerService.updateCustomer(Number(req.params.customer_id), req.body, req.user?.pharmacy_id);
     if (!updated) {
       return res.status(404).json({ message: "Customer not found" });
     }
@@ -50,7 +50,7 @@ exports.updateCustomer = async (req, res) => {
 
 exports.deleteCustomer = async (req, res) => {
   try {
-    const removed = await customerService.deleteCustomer(Number(req.params.customer_id));
+    const removed = await customerService.deleteCustomer(Number(req.params.customer_id), req.user?.pharmacy_id);
     if (!removed) {
       return res.status(404).json({ message: "Customer not found" });
     }
@@ -64,7 +64,7 @@ exports.deleteCustomer = async (req, res) => {
 
 exports.searchByPhone = async (req, res) => {
   try {
-    const customers = await customerService.searchByPhone(req.query.phone || "");
+    const customers = await customerService.searchByPhone(req.query.phone || "", req.user?.pharmacy_id);
     res.json(customers);
   } catch (error) {
     console.error(error);
@@ -74,7 +74,7 @@ exports.searchByPhone = async (req, res) => {
 
 exports.getCustomerHistory = async (req, res) => {
   try {
-    const data = await customerService.getCustomerHistory(Number(req.params.customer_id));
+    const data = await customerService.getCustomerHistory(Number(req.params.customer_id), req.user?.pharmacy_id);
     if (!data) {
       return res.status(404).json({ message: "Customer not found" });
     }

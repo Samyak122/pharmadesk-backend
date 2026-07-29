@@ -21,12 +21,13 @@ function getMonthRange() {
   return { start, end };
 }
 
-async function getDashboardSummary() {
+async function getDashboardSummary(pharmacyId) {
   const todayRange = getTodayRange();
   const monthRange = getMonthRange();
 
   const todayInvoices = await Invoice.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       invoice_date: {
         [Op.gte]: formatDateOnly(todayRange.start),
         [Op.lt]: formatDateOnly(todayRange.end),
@@ -36,6 +37,7 @@ async function getDashboardSummary() {
 
   const monthlyInvoices = await Invoice.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       invoice_date: {
         [Op.gte]: formatDateOnly(monthRange.start),
         [Op.lt]: formatDateOnly(monthRange.end),
@@ -48,6 +50,7 @@ async function getDashboardSummary() {
 
   const purchases = await Purchase.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       purchase_date: {
         [Op.gte]: formatDateOnly(todayRange.start),
         [Op.lt]: formatDateOnly(todayRange.end),
@@ -60,6 +63,7 @@ async function getDashboardSummary() {
 
   const lowStockBatches = await Inventory.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       is_active: true,
       quantity: { [Op.lte]: 5 },
     },
@@ -75,6 +79,7 @@ async function getDashboardSummary() {
 
   const outOfStock = await Inventory.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       is_active: true,
       quantity: { [Op.eq]: 0 },
     },
@@ -95,6 +100,7 @@ async function getDashboardSummary() {
 
   const expiringInSevenDays = await Inventory.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       is_active: true,
       expiry_date: {
         [Op.gte]: formatDateOnly(today),
@@ -112,6 +118,7 @@ async function getDashboardSummary() {
 
   const expiringInThirtyDays = await Inventory.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       is_active: true,
       expiry_date: {
         [Op.gte]: formatDateOnly(today),
@@ -129,6 +136,7 @@ async function getDashboardSummary() {
 
   const expiredMedicines = await Inventory.findAll({
     where: {
+      pharmacy_id: pharmacyId,
       is_active: true,
       expiry_date: { [Op.lt]: formatDateOnly(today) },
     },
@@ -142,6 +150,7 @@ async function getDashboardSummary() {
   });
 
   const invoiceItems = await InvoiceItem.findAll({
+    where: { pharmacy_id: pharmacyId },
     include: [
       {
         model: Inventory,
@@ -182,8 +191,9 @@ async function getDashboardSummary() {
   };
 }
 
-async function getSalesChart() {
+async function getSalesChart(pharmacyId) {
   const invoices = await Invoice.findAll({
+    where: { pharmacy_id: pharmacyId },
     attributes: ["invoice_date", "total_amount"],
     order: [["invoice_date", "ASC"]],
   });

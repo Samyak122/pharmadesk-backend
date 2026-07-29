@@ -22,6 +22,7 @@ const Customer = require("./models/Customer");
 const Invoice = require("./models/Invoice");
 const InvoiceItem = require("./models/InvoiceItem");
 const User = require("./models/User");
+const Pharmacy = require("./models/Pharmacy");
 const PharmacySetting = require("./models/PharmacySetting");
 
 const { authenticateToken, authorizeRoles } = require("./middleware/authMiddleware");

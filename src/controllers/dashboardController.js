@@ -2,7 +2,7 @@ const dashboardService = require("../services/dashboardService");
 
 exports.getDashboardSummary = async (req, res) => {
   try {
-    const summary = await dashboardService.getDashboardSummary();
+    const summary = await dashboardService.getDashboardSummary(req.user?.pharmacy_id);
     res.json(summary);
   } catch (error) {
     console.error(error);
@@ -12,7 +12,7 @@ exports.getDashboardSummary = async (req, res) => {
 
 exports.getSalesChart = async (req, res) => {
   try {
-    const chart = await dashboardService.getSalesChart();
+    const chart = await dashboardService.getSalesChart(req.user?.pharmacy_id);
     res.json(chart);
   } catch (error) {
     console.error(error);

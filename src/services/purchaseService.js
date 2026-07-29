@@ -17,14 +17,14 @@ function calculatePurchaseSummary(items = []) {
   };
 }
 
-async function createPurchase(payload) {
+async function createPurchase(payload, pharmacyId) {
   const { supplier_id, invoice_no, notes, payment_status = "Pending", items = [] } = payload;
 
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("At least one purchase item is required.");
   }
 
-  const supplier = supplier_id ? await Supplier.findByPk(supplier_id) : null;
+  const supplier = supplier_id ? await Supplier.findOne({ where: { supplier_id, pharmacy_id: pharmacyId } }) : null;
   if (supplier_id && !supplier) {
     throw new Error("Supplier not found.");
   }
@@ -32,6 +32,7 @@ async function createPurchase(payload) {
   const summary = calculatePurchaseSummary(items);
   const purchase = await Purchase.create({
     supplier_id: supplier_id || null,
+    pharmacy_id: pharmacyId,
     invoice_no,
     notes,
     payment_status,
@@ -55,6 +56,7 @@ async function createPurchase(payload) {
     let inventoryBatch = await Inventory.findOne({
       where: {
         medicine_id,
+        pharmacy_id: pharmacyId,
         batch_no,
         is_active: true,
       },
@@ -63,6 +65,7 @@ async function createPurchase(payload) {
     if (!inventoryBatch) {
       inventoryBatch = await Inventory.create({
         medicine_id,
+        pharmacy_id: pharmacyId,
         batch_no,
         expiry_date,
         quantity: 0,
@@ -87,6 +90,7 @@ async function createPurchase(payload) {
     const purchaseItem = await PurchaseItem.create({
       purchase_id: purchase.purchase_id,
       stock_id: inventoryBatch.stock_id,
+      pharmacy_id: pharmacyId,
       quantity: Number(quantity),
       unit_cost: Number(unit_cost || 0),
       total_cost: totalCost,
@@ -102,8 +106,9 @@ async function createPurchase(payload) {
   };
 }
 
-async function listPurchases() {
+async function listPurchases(pharmacyId) {
   return Purchase.findAll({
+    where: { pharmacy_id: pharmacyId },
     include: [
       {
         model: Supplier,
@@ -132,8 +137,9 @@ async function listPurchases() {
   });
 }
 
-async function getPurchaseById(purchaseId) {
-  return Purchase.findByPk(purchaseId, {
+async function getPurchaseById(purchaseId, pharmacyId) {
+  return Purchase.findOne({
+    where: { purchase_id: purchaseId, pharmacy_id: pharmacyId },
     include: [
       {
         model: Supplier,

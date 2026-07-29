@@ -2,7 +2,7 @@ const settingsService = require("../services/settingsService");
 
 exports.getSettings = async (req, res) => {
   try {
-    const settings = await settingsService.getSettings();
+    const settings = await settingsService.getSettings(req.user?.pharmacy_id);
     res.json(settings);
   } catch (error) {
     console.error(error);
@@ -12,7 +12,7 @@ exports.getSettings = async (req, res) => {
 
 exports.updateSettings = async (req, res) => {
   try {
-    const settings = await settingsService.updateSettings(req.body);
+    const settings = await settingsService.updateSettings(req.body, req.user?.pharmacy_id);
     res.json({ message: "Settings updated successfully", data: settings });
   } catch (error) {
     console.error(error);

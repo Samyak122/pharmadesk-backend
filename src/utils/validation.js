@@ -11,6 +11,12 @@ const authRegisterSchema = Joi.object({
   password: Joi.string().min(6).max(100).required(),
   email: emailSchema.optional(),
   role: Joi.string().valid("Admin", "Pharmacist").required(),
+  pharmacy_name: Joi.string().trim().max(200).optional(),
+  owner_name: Joi.string().trim().max(200).optional(),
+  phone: Joi.string().trim().max(30).optional(),
+  gstin: Joi.string().trim().max(100).optional(),
+  license_no: Joi.string().trim().max(100).optional(),
+  pharmacy_email: emailSchema.optional(),
 });
 
 const authLoginSchema = Joi.object({

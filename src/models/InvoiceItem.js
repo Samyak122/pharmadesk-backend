@@ -2,6 +2,7 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Invoice = require("./Invoice");
 const Inventory = require("./Inventory");
+const Pharmacy = require("./Pharmacy");
 
 const InvoiceItem = sequelize.define(
   "InvoiceItem",
@@ -42,6 +43,14 @@ const InvoiceItem = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
+    },
   },
   {
     tableName: "invoice_items",
@@ -62,6 +71,16 @@ InvoiceItem.belongsTo(Inventory, {
 Invoice.hasMany(InvoiceItem, {
   foreignKey: "invoice_id",
   as: "items",
+});
+
+InvoiceItem.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
+Pharmacy.hasMany(InvoiceItem, {
+  foreignKey: "pharmacy_id",
+  as: "invoiceItems",
 });
 
 module.exports = InvoiceItem;

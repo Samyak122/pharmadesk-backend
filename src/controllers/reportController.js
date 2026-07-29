@@ -2,7 +2,7 @@ const reportService = require("../services/reportService");
 
 exports.getSalesReport = async (req, res) => {
   try {
-    const data = await reportService.getSalesReport();
+    const data = await reportService.getSalesReport(req.user?.pharmacy_id);
     res.json(data);
   } catch (error) {
     console.error(error);
@@ -12,7 +12,7 @@ exports.getSalesReport = async (req, res) => {
 
 exports.getGstReport = async (req, res) => {
   try {
-    const data = await reportService.getGstReport();
+    const data = await reportService.getGstReport(req.user?.pharmacy_id);
     res.json(data);
   } catch (error) {
     console.error(error);
@@ -22,7 +22,7 @@ exports.getGstReport = async (req, res) => {
 
 exports.getInventoryReport = async (req, res) => {
   try {
-    const data = await reportService.getInventoryReport();
+    const data = await reportService.getInventoryReport(req.user?.pharmacy_id);
     res.json(data);
   } catch (error) {
     console.error(error);
@@ -32,7 +32,7 @@ exports.getInventoryReport = async (req, res) => {
 
 exports.getPurchaseReport = async (req, res) => {
   try {
-    const data = await reportService.getPurchaseReport();
+    const data = await reportService.getPurchaseReport(req.user?.pharmacy_id);
     res.json(data);
   } catch (error) {
     console.error(error);
@@ -42,7 +42,7 @@ exports.getPurchaseReport = async (req, res) => {
 
 exports.getCustomerReport = async (req, res) => {
   try {
-    const data = await reportService.getCustomerReport();
+    const data = await reportService.getCustomerReport(req.user?.pharmacy_id);
     res.json(data);
   } catch (error) {
     console.error(error);
@@ -52,7 +52,7 @@ exports.getCustomerReport = async (req, res) => {
 
 exports.getSupplierReport = async (req, res) => {
   try {
-    const data = await reportService.getSupplierReport();
+    const data = await reportService.getSupplierReport(req.user?.pharmacy_id);
     res.json(data);
   } catch (error) {
     console.error(error);
@@ -62,7 +62,7 @@ exports.getSupplierReport = async (req, res) => {
 
 exports.getBatchReport = async (req, res) => {
   try {
-    const data = await reportService.getBatchReport();
+    const data = await reportService.getBatchReport(req.user?.pharmacy_id);
     res.json(data);
   } catch (error) {
     console.error(error);

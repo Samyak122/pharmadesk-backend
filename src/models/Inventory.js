@@ -1,6 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Medicine = require("./Medicine");
+const Pharmacy = require("./Pharmacy");
 
 const Inventory = sequelize.define(
   "Inventory",
@@ -53,6 +54,14 @@ const Inventory = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: true,
     },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
+    },
     is_active: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -82,9 +91,19 @@ Inventory.belongsTo(Medicine, {
   as: "medicine",
 });
 
+Inventory.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
 Medicine.hasMany(Inventory, {
   foreignKey: "medicine_id",
   as: "inventoryBatches",
+});
+
+Pharmacy.hasMany(Inventory, {
+  foreignKey: "pharmacy_id",
+  as: "inventory",
 });
 
 module.exports = Inventory;

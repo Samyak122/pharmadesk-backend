@@ -2,7 +2,7 @@ const purchaseService = require("../services/purchaseService");
 
 exports.createPurchase = async (req, res) => {
   try {
-    const result = await purchaseService.createPurchase(req.body);
+    const result = await purchaseService.createPurchase(req.body, req.user?.pharmacy_id);
     res.status(201).json({
       message: "Purchase created successfully",
       data: result,
@@ -16,7 +16,7 @@ exports.createPurchase = async (req, res) => {
 
 exports.listPurchases = async (req, res) => {
   try {
-    const purchases = await purchaseService.listPurchases();
+    const purchases = await purchaseService.listPurchases(req.user?.pharmacy_id);
     res.json(purchases);
   } catch (error) {
     console.error(error);
@@ -26,7 +26,7 @@ exports.listPurchases = async (req, res) => {
 
 exports.getPurchaseById = async (req, res) => {
   try {
-    const purchase = await purchaseService.getPurchaseById(Number(req.params.purchase_id));
+    const purchase = await purchaseService.getPurchaseById(Number(req.params.purchase_id), req.user?.pharmacy_id);
     if (!purchase) {
       return res.status(404).json({ message: "Purchase not found" });
     }

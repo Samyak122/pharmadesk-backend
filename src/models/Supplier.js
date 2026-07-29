@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
+const Pharmacy = require("./Pharmacy");
 
 const Supplier = sequelize.define(
   "Supplier",
@@ -29,6 +30,14 @@ const Supplier = sequelize.define(
       type: DataTypes.STRING(100),
       allowNull: true,
     },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
+    },
     is_active: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
@@ -40,5 +49,15 @@ const Supplier = sequelize.define(
     timestamps: false,
   }
 );
+
+Supplier.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
+Pharmacy.hasMany(Supplier, {
+  foreignKey: "pharmacy_id",
+  as: "suppliers",
+});
 
 module.exports = Supplier;

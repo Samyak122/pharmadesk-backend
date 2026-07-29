@@ -28,12 +28,12 @@ function calculateCustomerStats(history = []) {
   };
 }
 
-async function createCustomer(payload) {
-  return Customer.create(payload);
+async function createCustomer(payload, pharmacyId) {
+  return Customer.create({ ...payload, pharmacy_id: pharmacyId });
 }
 
-async function listCustomers(search = "") {
-  const where = { is_active: true };
+async function listCustomers(search = "", pharmacyId) {
+  const where = { is_active: true, pharmacy_id: pharmacyId };
   if (search) {
     where[Op.or] = [
       { customer_name: { [Op.iLike]: `%${search}%` } },
@@ -47,12 +47,12 @@ async function listCustomers(search = "") {
   });
 }
 
-async function getCustomerById(customerId) {
-  return Customer.findByPk(customerId);
+async function getCustomerById(customerId, pharmacyId) {
+  return Customer.findOne({ where: { customer_id: customerId, pharmacy_id: pharmacyId } });
 }
 
-async function updateCustomer(customerId, payload) {
-  const customer = await Customer.findByPk(customerId);
+async function updateCustomer(customerId, payload, pharmacyId) {
+  const customer = await Customer.findOne({ where: { customer_id: customerId, pharmacy_id: pharmacyId } });
   if (!customer) {
     return null;
   }
@@ -61,8 +61,8 @@ async function updateCustomer(customerId, payload) {
   return customer;
 }
 
-async function deleteCustomer(customerId) {
-  const customer = await Customer.findByPk(customerId);
+async function deleteCustomer(customerId, pharmacyId) {
+  const customer = await Customer.findOne({ where: { customer_id: customerId, pharmacy_id: pharmacyId } });
   if (!customer) {
     return null;
   }
@@ -71,23 +71,24 @@ async function deleteCustomer(customerId) {
   return true;
 }
 
-async function searchByPhone(phone) {
+async function searchByPhone(phone, pharmacyId) {
   return Customer.findAll({
     where: {
       phone: { [Op.iLike]: `%${phone}%` },
       is_active: true,
+      pharmacy_id: pharmacyId,
     },
   });
 }
 
-async function getCustomerHistory(customerId) {
-  const customer = await Customer.findByPk(customerId);
+async function getCustomerHistory(customerId, pharmacyId) {
+  const customer = await Customer.findOne({ where: { customer_id: customerId, pharmacy_id: pharmacyId } });
   if (!customer) {
     return null;
   }
 
   const invoices = await Invoice.findAll({
-    where: { customer_id: customerId },
+    where: { customer_id: customerId, pharmacy_id: pharmacyId },
     include: [
       {
         model: InvoiceItem,

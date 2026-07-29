@@ -29,16 +29,19 @@ exports.createInventory = async (req, res) => {
       return res.status(400).json({ message: "quantity cannot be negative" });
     }
 
-    const inventory = await InventoryService.createInventory({
-      medicine_id,
-      batch_no,
-      expiry_date,
-      quantity: Number(quantity),
-      unit_cost: Number(unit_cost || 0),
-      selling_price: Number(selling_price || 0),
-      min_stock: Number(min_stock || 5),
-      location,
-    });
+    const inventory = await InventoryService.createInventory(
+      {
+        medicine_id,
+        batch_no,
+        expiry_date,
+        quantity: Number(quantity),
+        unit_cost: Number(unit_cost || 0),
+        selling_price: Number(selling_price || 0),
+        min_stock: Number(min_stock || 5),
+        location,
+      },
+      req.user?.pharmacy_id
+    );
 
     res.status(201).json({
       message: "Inventory added successfully",
@@ -59,6 +62,7 @@ exports.getInventory = async (req, res) => {
       expiringSoon: req.query.expiringSoon,
       expired: req.query.expired === "true",
       medicine_id: req.query.medicine_id ? Number(req.query.medicine_id) : null,
+      pharmacyId: req.user?.pharmacy_id,
     });
 
     const formatted = batches.map((batch) => ({
@@ -82,7 +86,7 @@ exports.updateInventory = async (req, res) => {
       return res.status(400).json({ message: "quantity cannot be negative" });
     }
 
-    const updated = await InventoryService.updateInventory(Number(stock_id), payload);
+    const updated = await InventoryService.updateInventory(Number(stock_id), payload, req.user?.pharmacy_id);
     if (!updated) {
       return res.status(404).json({ message: "Inventory batch not found" });
     }
@@ -97,7 +101,7 @@ exports.updateInventory = async (req, res) => {
 exports.deleteInventory = async (req, res) => {
   try {
     const { stock_id } = req.params;
-    const removed = await InventoryService.deleteInventory(Number(stock_id));
+    const removed = await InventoryService.deleteInventory(Number(stock_id), req.user?.pharmacy_id);
 
     if (!removed) {
       return res.status(404).json({ message: "Inventory batch not found" });
@@ -117,7 +121,7 @@ exports.getFefoBatches = async (req, res) => {
       return res.status(400).json({ message: "medicine_id is required" });
     }
 
-    const batches = await InventoryService.getFefoBatches(medicineId);
+    const batches = await InventoryService.getFefoBatches(medicineId, req.user?.pharmacy_id);
     res.json(batches);
   } catch (error) {
     console.error(error);
@@ -132,7 +136,7 @@ exports.searchStock = async (req, res) => {
       return res.status(400).json({ message: "Search query is required" });
     }
 
-    const stock = await InventoryService.searchStock(query);
+    const stock = await InventoryService.searchStock(query, req.user?.pharmacy_id);
     res.json(stock);
   } catch (error) {
     console.error(error);

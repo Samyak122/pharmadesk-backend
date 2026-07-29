@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const jwt = require('jsonwebtoken');
 const { validate, authRegisterSchema } = require('../src/utils/validation');
+const { signToken } = require('../src/services/authService');
 
 test('rejects lowercase or unsupported roles for registration', () => {
   const invalidPayload = { username: 'newuser', password: 'password123', role: 'admin' };
@@ -38,4 +40,14 @@ test('validate middleware returns 400 for unsupported roles', () => {
 
   assert.equal(res.statusCode, 400);
   assert.equal(res.payload.message, 'Validation failed');
+});
+
+test('signToken includes tenant and role claims', () => {
+  const token = signToken({ user_id: 7, pharmacy_id: 3, role: 'Admin', username: 'alice' });
+  const payload = jwt.decode(token);
+
+  assert.equal(payload.user_id, 7);
+  assert.equal(payload.pharmacy_id, 3);
+  assert.equal(payload.role, 'Admin');
+  assert.equal(payload.username, 'alice');
 });

@@ -26,6 +26,7 @@ function calculateBatchMetrics(batch) {
 async function listInventory(filters = {}) {
   const where = {
     is_active: true,
+    pharmacy_id: filters.pharmacyId,
     ...(filters.medicine_id ? { medicine_id: filters.medicine_id } : {}),
     ...(filters.lowStock ? { quantity: { [Op.lte]: filters.lowStockThreshold ?? 0 } } : {}),
   };
@@ -83,10 +84,11 @@ async function listInventory(filters = {}) {
   });
 }
 
-async function getFefoBatches(medicineId) {
+async function getFefoBatches(medicineId, pharmacyId) {
   return Inventory.findAll({
     where: {
       medicine_id: medicineId,
+      pharmacy_id: pharmacyId,
       is_active: true,
       quantity: { [Op.gt]: 0 },
     },
@@ -101,7 +103,7 @@ async function getFefoBatches(medicineId) {
   });
 }
 
-async function searchStock(query) {
+async function searchStock(query, pharmacyId) {
   if (!query) {
     return [];
   }
@@ -125,6 +127,7 @@ async function searchStock(query) {
   const batches = await Inventory.findAll({
     where: {
       medicine_id: { [Op.in]: medicineIds },
+      pharmacy_id: pharmacyId,
       is_active: true,
       quantity: { [Op.gt]: 0 },
     },
@@ -152,13 +155,13 @@ async function searchStock(query) {
   }));
 }
 
-async function createInventory(payload) {
-  return Inventory.create(payload);
+async function createInventory(payload, pharmacyId) {
+  return Inventory.create({ ...payload, pharmacy_id: pharmacyId });
 }
 
-async function updateInventory(stockId, payload) {
+async function updateInventory(stockId, payload, pharmacyId) {
   const batch = await Inventory.findOne({
-    where: { stock_id: stockId, is_active: true },
+    where: { stock_id: stockId, pharmacy_id: pharmacyId, is_active: true },
   });
 
   if (!batch) {
@@ -169,9 +172,9 @@ async function updateInventory(stockId, payload) {
   return batch;
 }
 
-async function deleteInventory(stockId) {
+async function deleteInventory(stockId, pharmacyId) {
   const batch = await Inventory.findOne({
-    where: { stock_id: stockId, is_active: true },
+    where: { stock_id: stockId, pharmacy_id: pharmacyId, is_active: true },
   });
 
   if (!batch) {

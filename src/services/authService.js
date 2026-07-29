@@ -1,11 +1,15 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const sequelize = require("../config/database");
 const User = require("../models/User");
+const Pharmacy = require("../models/Pharmacy");
 
 function signToken(user) {
   return jwt.sign(
     {
       userId: user.user_id,
+      user_id: user.user_id,
+      pharmacy_id: user.pharmacy_id,
       username: user.username,
       role: user.role,
     },
@@ -32,15 +36,46 @@ async function registerUser(payload) {
     throw new Error("Username already exists.");
   }
 
-  const password_hash = await bcrypt.hash(password, 10);
-  const user = await User.create({ username, email, password_hash, role: normalizedRole });
+  const transaction = await sequelize.transaction();
 
-  return {
-    user_id: user.user_id,
-    username: user.username,
-    email: user.email,
-    role: user.role,
-  };
+  try {
+    const pharmacyName = payload.pharmacy_name || payload.pharmacyName || username;
+    const pharmacy = await Pharmacy.create(
+      {
+        pharmacy_name: pharmacyName,
+        owner_name: payload.owner_name || payload.ownerName || username,
+        email: payload.pharmacy_email || payload.pharmacyEmail || email || null,
+        phone: payload.phone || null,
+        gstin: payload.gstin || null,
+        license_no: payload.license_no || payload.licenseNo || null,
+      },
+      { transaction }
+    );
+
+    const password_hash = await bcrypt.hash(password, 10);
+    const user = await User.create(
+      {
+        username,
+        email,
+        password_hash,
+        role: normalizedRole,
+        pharmacy_id: pharmacy.pharmacy_id,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return {
+      user_id: user.user_id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    };
+  } catch (error) {
+    await transaction.rollback();
+    throw error;
+  }
 }
 
 async function loginUser(payload) {

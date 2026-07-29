@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
+const Pharmacy = require("./Pharmacy");
 
 const PharmacySetting = sequelize.define(
   "PharmacySetting",
@@ -8,6 +9,14 @@ const PharmacySetting = sequelize.define(
       type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
+    },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
     },
     pharmacy_name: {
       type: DataTypes.STRING(200),
@@ -81,5 +90,15 @@ const PharmacySetting = sequelize.define(
     timestamps: false,
   }
 );
+
+PharmacySetting.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
+Pharmacy.hasMany(PharmacySetting, {
+  foreignKey: "pharmacy_id",
+  as: "settings",
+});
 
 module.exports = PharmacySetting;

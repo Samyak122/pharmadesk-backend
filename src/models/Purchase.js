@@ -1,6 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Supplier = require("./Supplier");
+const Pharmacy = require("./Pharmacy");
 
 const Purchase = sequelize.define(
   "Purchase",
@@ -37,6 +38,14 @@ const Purchase = sequelize.define(
       allowNull: false,
       defaultValue: "Pending",
     },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
+    },
     notes: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -55,6 +64,16 @@ Purchase.belongsTo(Supplier, {
 
 Supplier.hasMany(Purchase, {
   foreignKey: "supplier_id",
+  as: "purchases",
+});
+
+Purchase.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
+Pharmacy.hasMany(Purchase, {
+  foreignKey: "pharmacy_id",
   as: "purchases",
 });
 

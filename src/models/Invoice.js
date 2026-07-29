@@ -1,6 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Customer = require("./Customer");
+const Pharmacy = require("./Pharmacy");
 
 const Invoice = sequelize.define(
   "Invoice",
@@ -52,6 +53,14 @@ const Invoice = sequelize.define(
       allowNull: false,
       defaultValue: "Pending",
     },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
+    },
     notes: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -70,6 +79,16 @@ Invoice.belongsTo(Customer, {
 
 Customer.hasMany(Invoice, {
   foreignKey: "customer_id",
+  as: "invoices",
+});
+
+Invoice.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
+Pharmacy.hasMany(Invoice, {
+  foreignKey: "pharmacy_id",
   as: "invoices",
 });
 

@@ -22,7 +22,7 @@ function calculateBillTotals(items = [], gstPercent = 0) {
   };
 }
 
-async function createInvoice(payload) {
+async function createInvoice(payload, pharmacyId) {
   const {
     customer_id,
     invoice_no,
@@ -40,7 +40,7 @@ async function createInvoice(payload) {
   }
 
   if (customer_id) {
-    const customer = await Customer.findByPk(customer_id);
+    const customer = await Customer.findOne({ where: { customer_id, pharmacy_id: pharmacyId } });
     if (!customer) {
       throw new Error("Customer not found.");
     }
@@ -53,6 +53,7 @@ async function createInvoice(payload) {
     const invoice = await Invoice.create(
       {
         customer_id: customer_id || null,
+        pharmacy_id: pharmacyId,
         invoice_no,
         invoice_date: invoice_date || new Date(),
         total_amount: totals.totalAmount,
@@ -82,6 +83,7 @@ async function createInvoice(payload) {
       const availableBatches = await Inventory.findAll({
         where: {
           medicine_id: medicineId,
+          pharmacy_id: pharmacyId,
           is_active: true,
           quantity: { [Op.gt]: 0 },
         },
@@ -115,6 +117,7 @@ async function createInvoice(payload) {
         invoiceItemPayloads.push({
           invoice_id: invoice.invoice_id,
           stock_id: batch.stock_id,
+          pharmacy_id: pharmacyId,
           quantity: quantityFromBatch,
           unit_price: unitPrice,
           total_price: totalPrice,
@@ -143,8 +146,9 @@ async function createInvoice(payload) {
   }
 }
 
-async function listInvoices() {
+async function listInvoices(pharmacyId) {
   return Invoice.findAll({
+    where: { pharmacy_id: pharmacyId },
     include: [
       {
         model: Customer,
@@ -173,8 +177,9 @@ async function listInvoices() {
   });
 }
 
-async function getInvoiceById(invoiceId) {
-  return Invoice.findByPk(invoiceId, {
+async function getInvoiceById(invoiceId, pharmacyId) {
+  return Invoice.findOne({
+    where: { invoice_id: invoiceId, pharmacy_id: pharmacyId },
     include: [
       {
         model: Customer,

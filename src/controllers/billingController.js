@@ -2,7 +2,7 @@ const billingService = require("../services/billingService");
 
 exports.createInvoice = async (req, res) => {
   try {
-    const result = await billingService.createInvoice(req.body);
+    const result = await billingService.createInvoice(req.body, req.user?.pharmacy_id);
     res.status(201).json({ message: "Invoice created successfully", data: result });
   } catch (error) {
     console.error(error);
@@ -12,7 +12,7 @@ exports.createInvoice = async (req, res) => {
 
 exports.listInvoices = async (req, res) => {
   try {
-    const invoices = await billingService.listInvoices();
+    const invoices = await billingService.listInvoices(req.user?.pharmacy_id);
     res.json(invoices);
   } catch (error) {
     console.error(error);
@@ -22,7 +22,7 @@ exports.listInvoices = async (req, res) => {
 
 exports.getInvoiceById = async (req, res) => {
   try {
-    const invoice = await billingService.getInvoiceById(Number(req.params.invoice_id));
+    const invoice = await billingService.getInvoiceById(Number(req.params.invoice_id), req.user?.pharmacy_id);
     if (!invoice) {
       return res.status(404).json({ message: "Invoice not found" });
     }

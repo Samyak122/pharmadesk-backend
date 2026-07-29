@@ -48,8 +48,9 @@ function buildSalesRows(invoices = []) {
   });
 }
 
-async function getSalesReport() {
+async function getSalesReport(pharmacyId) {
   const invoices = await Invoice.findAll({
+    where: { pharmacy_id: pharmacyId },
     include: [
       {
         model: Customer,
@@ -80,8 +81,9 @@ async function getSalesReport() {
   return buildSalesRows(invoices);
 }
 
-async function getGstReport() {
+async function getGstReport(pharmacyId) {
   const invoices = await Invoice.findAll({
+    where: { pharmacy_id: pharmacyId },
     attributes: ["invoice_no", "invoice_date", "total_amount", "gst_amount", "discount_amount"],
     order: [["invoice_date", "ASC"]],
   });
@@ -95,9 +97,9 @@ async function getGstReport() {
   }));
 }
 
-async function getInventoryReport() {
+async function getInventoryReport(pharmacyId) {
   const batches = await Inventory.findAll({
-    where: { is_active: true },
+    where: { pharmacy_id: pharmacyId, is_active: true },
     include: [
       {
         model: Medicine,
@@ -120,8 +122,9 @@ async function getInventoryReport() {
   }));
 }
 
-async function getPurchaseReport() {
+async function getPurchaseReport(pharmacyId) {
   const purchases = await Purchase.findAll({
+    where: { pharmacy_id: pharmacyId },
     include: [
       {
         model: Supplier,
@@ -142,9 +145,9 @@ async function getPurchaseReport() {
   }));
 }
 
-async function getCustomerReport() {
+async function getCustomerReport(pharmacyId) {
   const customers = await Customer.findAll({
-    where: { is_active: true },
+    where: { pharmacy_id: pharmacyId, is_active: true },
     order: [["customer_name", "ASC"]],
   });
 
@@ -157,9 +160,9 @@ async function getCustomerReport() {
   }));
 }
 
-async function getSupplierReport() {
+async function getSupplierReport(pharmacyId) {
   const suppliers = await Supplier.findAll({
-    where: { is_active: true },
+    where: { pharmacy_id: pharmacyId, is_active: true },
     order: [["supplier_name", "ASC"]],
   });
 
@@ -173,9 +176,9 @@ async function getSupplierReport() {
   }));
 }
 
-async function getBatchReport() {
+async function getBatchReport(pharmacyId) {
   const batches = await Inventory.findAll({
-    where: { is_active: true },
+    where: { pharmacy_id: pharmacyId, is_active: true },
     include: [
       {
         model: Medicine,

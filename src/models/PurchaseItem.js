@@ -2,6 +2,7 @@ const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Purchase = require("./Purchase");
 const Inventory = require("./Inventory");
+const Pharmacy = require("./Pharmacy");
 
 const PurchaseItem = sequelize.define(
   "PurchaseItem",
@@ -42,6 +43,14 @@ const PurchaseItem = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    pharmacy_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: Pharmacy,
+        key: "pharmacy_id",
+      },
+    },
   },
   {
     tableName: "purchase_items",
@@ -62,6 +71,16 @@ PurchaseItem.belongsTo(Inventory, {
 Purchase.hasMany(PurchaseItem, {
   foreignKey: "purchase_id",
   as: "items",
+});
+
+PurchaseItem.belongsTo(Pharmacy, {
+  foreignKey: "pharmacy_id",
+  as: "pharmacy",
+});
+
+Pharmacy.hasMany(PurchaseItem, {
+  foreignKey: "pharmacy_id",
+  as: "purchaseItems",
 });
 
 module.exports = PurchaseItem;

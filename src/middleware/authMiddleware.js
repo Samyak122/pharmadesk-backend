@@ -13,7 +13,13 @@ function authenticateToken(req, res, next) {
       return res.status(403).json({ message: "Invalid or expired token" });
     }
 
-    req.user = user;
+    const normalizedUser = {
+      ...user,
+      user_id: user.user_id ?? user.userId,
+      pharmacy_id: user.pharmacy_id,
+    };
+
+    req.user = normalizedUser;
     next();
   });
 }
