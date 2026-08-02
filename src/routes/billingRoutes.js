@@ -6,5 +6,6 @@ const { validate, billingSchema } = require("../utils/validation");
 router.post("/", validate(billingSchema), billingController.createInvoice);
 router.get("/", billingController.listInvoices);
 router.get("/:invoice_id", billingController.getInvoiceById);
+router.put("/:invoice_id", validate(billingSchema), billingController.updateInvoice);
 
 module.exports = router;

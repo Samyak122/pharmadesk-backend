@@ -33,3 +33,13 @@ exports.getInvoiceById = async (req, res) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
+exports.updateInvoice = async (req, res) => {
+  try {
+    const result = await billingService.updateInvoice(Number(req.params.invoice_id), req.body, req.user?.pharmacy_id);
+    res.json({ message: "Invoice updated successfully", data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(400).json({ message: error.message || "Server Error" });
+  }
+};
