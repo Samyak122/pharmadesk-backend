@@ -12,6 +12,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const authRoutes = require("./routes/authRoutes");
+const contactRoutes = require("./routes/contactRoutes");
 
 const Medicine = require("./models/Medicine");
 const Inventory = require("./models/Inventory");
@@ -33,6 +34,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
+app.use("/api/contact", contactRoutes);
 app.use("/api/medicines", medicineRoutes);
 app.use("/api/inventory", authenticateToken, inventoryRoutes);
 app.use("/api/purchases", authenticateToken, purchaseRoutes);
