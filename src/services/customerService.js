@@ -49,7 +49,12 @@ async function createCustomer(payload, pharmacyId) {
     }
   }
 
-  return Customer.create({ ...payload, pharmacy_id: pharmacyId });
+  return Customer.create({
+    ...payload,
+    email: payload.email || null,
+    address: payload.address || null,
+    pharmacy_id: pharmacyId,
+  });
 }
 
 async function listCustomers(search = "", pharmacyId) {

@@ -48,8 +48,8 @@ const inventoryUpdateSchema = Joi.object({
 const customerSchema = Joi.object({
   customer_name: Joi.string().trim().min(2).max(150).required(),
   phone: phoneSchema.required(),
-  email: emailSchema.optional(),
-  address: Joi.string().trim().max(500).optional(),
+  email: emailSchema.allow(""),
+  address: Joi.string().trim().max(500).allow(""),
   date_of_birth: Joi.string().optional(),
 });
 
