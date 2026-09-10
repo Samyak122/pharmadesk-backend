@@ -2,64 +2,86 @@ const { Op } = require("sequelize");
 const Invoice = require("../models/Invoice");
 const InvoiceItem = require("../models/InvoiceItem");
 const Inventory = require("../models/Inventory");
-const Purchase = require("../models/Purchase");
-const PurchaseItem = require("../models/PurchaseItem");
 const Medicine = require("../models/Medicine");
+const PharmacySetting = require("../models/PharmacySetting");
 const { formatDateOnly } = require("../utils/dateUtils");
 
-function getTodayRange() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  return { start, end };
+function addDays(dateKey, days) {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
-function getMonthRange() {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  return { start, end };
+function dateKeyInTimeZone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date).reduce((result, part) => {
+    if (part.type !== "literal") result[part.type] = part.value;
+    return result;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function getDateRanges(timeZone = "Asia/Kolkata") {
+  const today = dateKeyInTimeZone(new Date(), timeZone);
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const nextMonth = new Date(`${monthStart}T00:00:00Z`);
+  nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+  return {
+    today: { start: today, end: addDays(today, 1) },
+    month: { start: monthStart, end: nextMonth.toISOString().slice(0, 10) },
+  };
+}
+
+function calculateFinancials(invoices = []) {
+  const sales = invoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0);
+  const gst = invoices.reduce((sum, invoice) => sum + Number(invoice.gst_amount || 0), 0);
+  const cost = invoices.reduce((sum, invoice) => sum + (invoice.items || []).reduce((itemSum, item) => {
+    const unitCost = Number(item.inventoryBatch?.unit_cost || 0);
+    return itemSum + unitCost * Number(item.quantity || 0);
+  }, 0), 0);
+  return {
+    sales: Number(sales.toFixed(2)),
+    cost: Number(cost.toFixed(2)),
+    profit: Number((sales - gst - cost).toFixed(2)),
+  };
 }
 
 async function getDashboardSummary(pharmacyId) {
-  const todayRange = getTodayRange();
-  const monthRange = getMonthRange();
+  const setting = await PharmacySetting.findOne({ where: { pharmacy_id: pharmacyId }, attributes: ["timezone"] });
+  const ranges = getDateRanges(setting?.timezone || "Asia/Kolkata");
 
   const todayInvoices = await Invoice.findAll({
     where: {
       pharmacy_id: pharmacyId,
       invoice_date: {
-        [Op.gte]: formatDateOnly(todayRange.start),
-        [Op.lt]: formatDateOnly(todayRange.end),
+        [Op.gte]: ranges.today.start,
+        [Op.lt]: ranges.today.end,
       },
     },
+    include: [{
+      model: InvoiceItem,
+      as: "items",
+      include: [{ model: Inventory, as: "inventoryBatch", attributes: ["stock_id", "unit_cost"] }],
+    }],
   });
 
   const monthlyInvoices = await Invoice.findAll({
     where: {
       pharmacy_id: pharmacyId,
       invoice_date: {
-        [Op.gte]: formatDateOnly(monthRange.start),
-        [Op.lt]: formatDateOnly(monthRange.end),
+        [Op.gte]: ranges.month.start,
+        [Op.lt]: ranges.month.end,
       },
     },
   });
 
-  const todaySales = todayInvoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0);
+  const todayFinancials = calculateFinancials(todayInvoices);
+  const todaySales = todayFinancials.sales;
   const monthlyRevenue = monthlyInvoices.reduce((sum, invoice) => sum + Number(invoice.total_amount || 0), 0);
-
-  const purchases = await Purchase.findAll({
-    where: {
-      pharmacy_id: pharmacyId,
-      purchase_date: {
-        [Op.gte]: formatDateOnly(todayRange.start),
-        [Op.lt]: formatDateOnly(todayRange.end),
-      },
-    },
-  });
-
-  const todayCost = purchases.reduce((sum, purchase) => sum + Number(purchase.total_amount || 0), 0);
-  const todayProfit = Number((todaySales - todayCost).toFixed(2));
 
   const lowStockBatches = await Inventory.findAll({
     where: {
@@ -180,7 +202,7 @@ async function getDashboardSummary(pharmacyId) {
 
   return {
     todaySales: Number(todaySales.toFixed(2)),
-    todayProfit: Number(todayProfit.toFixed(2)),
+    todayProfit: todayFinancials.profit,
     monthlyRevenue: Number(monthlyRevenue.toFixed(2)),
     lowStockMedicines: lowStockBatches.length,
     outOfStockMedicines: outOfStock.length,
@@ -207,4 +229,6 @@ async function getSalesChart(pharmacyId) {
 module.exports = {
   getDashboardSummary,
   getSalesChart,
+  calculateFinancials,
+  getDateRanges,
 };

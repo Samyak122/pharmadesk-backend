@@ -3,18 +3,21 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-console.log("Current directory:", process.cwd());
-console.log("DATABASE_URL =", process.env.DATABASE_URL);
+const databaseUrl = process.env.DATABASE_URL || "sqlite::memory:";
+const isSqlite = !process.env.DATABASE_URL || databaseUrl.startsWith("sqlite");
 
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialect: "postgres",
+const sequelize = new Sequelize(databaseUrl, {
+  dialect: isSqlite ? "sqlite" : "postgres",
+  storage: isSqlite ? ":memory:" : undefined,
   logging: false,
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false,
-    },
-  },
+  dialectOptions: isSqlite
+    ? undefined
+    : {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false,
+        },
+      },
 });
 
 module.exports = sequelize;

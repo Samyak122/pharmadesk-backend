@@ -6,6 +6,7 @@ const sequelize = require("./config/database");
 const medicineRoutes = require("./routes/medicineRoutes");
 const inventoryRoutes = require("./routes/inventoryRoutes");
 const purchaseRoutes = require("./routes/purchaseRoutes");
+const ocrRoutes = require("./routes/supplierInvoiceRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const billingRoutes = require("./routes/billingRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
@@ -38,6 +39,7 @@ app.use("/api/contact", contactRoutes);
 app.use("/api/medicines", medicineRoutes);
 app.use("/api/inventory", authenticateToken, inventoryRoutes);
 app.use("/api/purchases", authenticateToken, purchaseRoutes);
+app.use("/api/ocr", ocrRoutes);
 app.use("/api/customers", authenticateToken, customerRoutes);
 app.use("/api/billing", authenticateToken, billingRoutes);
 app.use("/api/dashboard", authenticateToken, dashboardRoutes);
@@ -50,19 +52,23 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-sequelize
-  .authenticate()
-  .then(async () => {
-    console.log("✅ Database Connected Successfully");
-
+async function startServer() {
+  try {
+    await sequelize.authenticate();
+    console.log("Database Connected Successfully");
     await sequelize.sync();
-    console.log("✅ Database synced");
-
+    console.log("Database synced");
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`Server running on port ${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("❌ Database Connection Failed");
+  } catch (err) {
+    console.error("Database Connection Failed");
     console.error(err);
-  });
+  }
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;
