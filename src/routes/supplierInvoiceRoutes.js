@@ -38,6 +38,13 @@ const upload = multer({
 });
 
 router.post("/extract", authenticateToken, upload.single("invoice"), async (req, res) => {
+  console.info("[OCR] request received", JSON.stringify({
+    fileReceived: Boolean(req.file),
+    mimeType: req.file?.mimetype || null,
+    fileSize: req.file?.size || 0,
+    pharmacyIdPresent: Boolean(req.user?.pharmacy_id),
+  }));
+
   try {
     if (!req.user?.pharmacy_id) {
       return res.status(401).json({ message: "Authentication required for invoice extraction." });
@@ -62,10 +69,33 @@ router.post("/extract", authenticateToken, upload.single("invoice"), async (req,
 
     return res.json(extracted);
   } catch (error) {
-    const message = error?.message || "Unable to extract supplier invoice.";
-    const statusCode = message.includes("clear") || message.includes("unsupported") || message.includes("too large") || message.includes("Please upload") ? 400 : 500;
-    return res.status(statusCode).json({ message });
+    const message = error?.publicMessage || error?.message || "Unable to process the invoice. Please try again.";
+    const isClientError = message.includes("upload") || message.includes("image type") || message.includes("too large");
+    console.error("[OCR] request failed", JSON.stringify({
+      code: error?.code || "OCR_FAILED",
+      status: error?.details?.status || null,
+      reason: error?.details?.reason || null,
+      message,
+    }));
+    return res.status(isClientError ? 400 : 500).json({
+      error: error?.code || "OCR_FAILED",
+      message,
+    });
   }
+});
+
+router.use((error, req, res, next) => {
+  if (error instanceof multer.MulterError || error?.message?.includes("Unsupported image type")) {
+    console.error("[OCR] upload failed", JSON.stringify({
+      type: error?.code || error?.name || "UploadError",
+      message: error?.message || "Invalid invoice upload",
+    }));
+    return res.status(400).json({
+      error: "OCR_UPLOAD_FAILED",
+      message: error?.message || "Please upload a valid invoice image.",
+    });
+  }
+  return next(error);
 });
 
 router.post("/confirm", authenticateToken, async (req, res) => {

@@ -1,8 +1,29 @@
 const OpenAI = require("openai");
 
-const OCR_DEFAULT_MODEL = process.env.OPENAI_OCR_MODEL || "gpt-4o-mini";
+const OCR_DEFAULT_MODEL = process.env.OPENAI_OCR_MODEL || "gpt-4.1-mini";
 const OCR_ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = Number(process.env.OPENAI_OCR_MAX_BYTES || 8 * 1024 * 1024);
+
+function logOcr(event, details = {}) {
+  console.info(`[OCR] ${event}`, JSON.stringify(details));
+}
+
+function getSafeOpenAiError(error) {
+  return {
+    type: error?.type || error?.name || "OpenAIError",
+    status: error?.status || error?.statusCode || null,
+    message: error?.error?.message || error?.message || "Unknown OpenAI error",
+    code: error?.code || error?.error?.code || null,
+  };
+}
+
+function createOcrError(message, details = {}) {
+  const error = new Error(message);
+  error.code = "OCR_FAILED";
+  error.publicMessage = message;
+  error.details = details;
+  return error;
+}
 
 function normalizeWhitespace(value) {
   return String(value ?? "")
@@ -262,8 +283,15 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("OpenAI API is not configured for OCR extraction.");
+    throw createOcrError("OCR is not configured. Please contact support.", { reason: "missing_api_key" });
   }
+
+  const model = process.env.OPENAI_OCR_MODEL || OCR_DEFAULT_MODEL;
+  logOcr("openai request started", {
+    model,
+    mimeType,
+    fileSize: fileBuffer.length,
+  });
 
   const openai = new OpenAI({ apiKey });
   const base64Image = fileBuffer.toString("base64");
@@ -293,7 +321,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_OCR_MODEL || OCR_DEFAULT_MODEL,
+      model,
       temperature: 0.1,
       response_format: { type: "json_object" },
       messages: [
@@ -308,33 +336,57 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
       max_tokens: 2400,
     });
 
+    logOcr("openai response received", {
+      model,
+      responseId: completion?.id || null,
+      contentLength: extractContentText(completion).length,
+    });
+
     const rawContent = extractContentText(completion);
     if (!rawContent.trim()) {
-      throw new Error("Could not read this invoice clearly. Please upload a clearer image.");
+      logOcr("openai response parsing failed", { reason: "empty_content" });
+      throw createOcrError("Unable to process the invoice. Please try again.", { reason: "empty_content" });
     }
 
-    const payload = JSON.parse(rawContent);
+    let payload;
+    try {
+      payload = JSON.parse(rawContent);
+    } catch (error) {
+      logOcr("openai response parsing failed", {
+        reason: "invalid_json",
+        message: error.message,
+      });
+      throw createOcrError("Unable to process the invoice. Please try again.", { reason: "invalid_json" });
+    }
     const validated = validateOcrExtractionPayload(payload);
 
     if (!Array.isArray(validated.items) || validated.items.length === 0) {
-      throw new Error("Could not read this invoice clearly. Please upload a clearer image.");
+      logOcr("openai response parsing failed", { reason: "no_invoice_items" });
+      throw createOcrError("Unable to process the invoice. Please try again.", { reason: "no_invoice_items" });
     }
 
     return validated;
   } catch (error) {
-    if (error?.name === "OpenAIError" || error?.status === 429 || error?.status === 500) {
-      throw new Error("OCR service is temporarily unavailable. Please try again in a moment.");
-    }
-
-    if (error instanceof SyntaxError) {
-      throw new Error("Could not read this invoice clearly. Please upload a clearer image.");
-    }
-
-    if (error?.message) {
+    if (error?.code === "OCR_FAILED") {
       throw error;
     }
 
-    throw new Error("Could not read this invoice clearly. Please upload a clearer image.");
+    const safeError = getSafeOpenAiError(error);
+    logOcr("openai request failed", safeError);
+
+    if (safeError.status === 401 || safeError.status === 403) {
+      throw createOcrError("OCR service authentication failed. Please contact support.", safeError);
+    }
+
+    if (safeError.status === 429 || safeError.status >= 500) {
+      throw createOcrError("OCR service is temporarily unavailable. Please try again in a moment.", safeError);
+    }
+
+    if (safeError.code === "model_not_found" || /model/i.test(safeError.message) && /not found|does not exist|unsupported|invalid/i.test(safeError.message)) {
+      throw createOcrError("OCR model configuration is invalid. Please contact support.", safeError);
+    }
+
+    throw createOcrError("Unable to process the invoice. Please try again.", safeError);
   }
 }
 
