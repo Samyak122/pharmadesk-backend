@@ -1,6 +1,7 @@
 const OpenAI = require("openai");
 
-const OCR_DEFAULT_MODEL = process.env.OPENAI_OCR_MODEL || "gpt-4.1-mini";
+const OCR_DEFAULT_MODEL = "gpt-4.1-mini";
+const OCR_SUPPORTED_MODELS = new Set(["gpt-4.1-mini", "gpt-4o-mini", "gpt-4o"]);
 const OCR_ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = Number(process.env.OPENAI_OCR_MAX_BYTES || 8 * 1024 * 1024);
 
@@ -286,7 +287,16 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     throw createOcrError("OCR is not configured. Please contact support.", { reason: "missing_api_key" });
   }
 
-  const model = process.env.OPENAI_OCR_MODEL || OCR_DEFAULT_MODEL;
+  const configuredModel = process.env.OPENAI_OCR_MODEL?.trim();
+  const model = configuredModel && OCR_SUPPORTED_MODELS.has(configuredModel)
+    ? configuredModel
+    : OCR_DEFAULT_MODEL;
+  if (configuredModel && model !== configuredModel) {
+    logOcr("unsupported configured model; using default", {
+      configuredModel,
+      fallbackModel: OCR_DEFAULT_MODEL,
+    });
+  }
   logOcr("openai request started", {
     model,
     mimeType,
