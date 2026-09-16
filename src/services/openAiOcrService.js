@@ -514,6 +514,26 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     }
     const validated = validateOcrExtractionPayload(payload);
 
+    const firstItem = validated.items[0] || null;
+    logOcr("parsed invoice summary", {
+      supplier: validated.supplier,
+      invoice: validated.invoice,
+      itemCount: validated.items.length,
+      firstItem: firstItem ? {
+        medicine: firstItem.medicine,
+        batch: firstItem.batch,
+        expiry: firstItem.expiry,
+        quantity: firstItem.quantity,
+        free: firstItem.free,
+        mrp: firstItem.mrp,
+        rate: firstItem.rate,
+        gst: firstItem.gst,
+        hsn: firstItem.hsn,
+        taxable_amount: firstItem.taxable_amount,
+        amount: firstItem.amount,
+      } : null,
+    });
+
     if (!Array.isArray(validated.items) || validated.items.length === 0) {
       logOcr("openrouter response parsing failed", { reason: "no_invoice_items" });
       throw createOcrError("Unable to process the invoice. Please try again.", { reason: "no_invoice_items" });
