@@ -6,7 +6,27 @@ const {
   validateGstin,
   sanitizeOcrJson,
   validateOcrExtractionPayload,
+  parseOcrJsonContent,
 } = require('../src/services/openAiOcrService');
+
+const validOcrJson = JSON.stringify({
+  supplier: { name: 'Medico Pharma', gstin: null, address: null, phone: null },
+  invoice: { number: 'INV-204', date: null },
+  items: [{ medicine: 'VITCOFOL', manufacturer: null, hsn: null, pack: null, batch: 'A123', expiry: null, quantity: 1, free: 0, mrp: 100, rate: 80, gst: null, taxable_amount: null, amount: null }],
+  totals: { subtotal: null, tax: null, grand_total: null },
+});
+
+test('parses valid OCR JSON wrapped in markdown fences', () => {
+  assert.deepEqual(parseOcrJsonContent(`\`\`\`json\n${validOcrJson}\n\`\`\``), JSON.parse(validOcrJson));
+});
+
+test('parses valid OCR JSON surrounded by explanation', () => {
+  assert.deepEqual(parseOcrJsonContent(`Here is the extracted invoice:\n${validOcrJson}\nEnd of extraction.`), JSON.parse(validOcrJson));
+});
+
+test('does not repair malformed or truncated OCR JSON', () => {
+  assert.throws(() => parseOcrJsonContent(`${validOcrJson.slice(0, -2)}`), SyntaxError);
+});
 
 test('valid GSTIN stays intact and invalid GSTIN is nulled', () => {
   assert.equal(validateGstin('27AABCM1234C1Z5'), '27AABCM1234C1Z5');

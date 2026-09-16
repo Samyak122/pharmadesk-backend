@@ -5,6 +5,73 @@ const OCR_DEFAULT_MODEL = "openrouter/free";
 const OPENROUTER_REQUEST_TIMEOUT_MS = 60 * 1000;
 const OCR_ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = Number(process.env.OPENAI_OCR_MAX_BYTES || 8 * 1024 * 1024);
+const OCR_RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "pharmaceutical_supplier_invoice",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["supplier", "invoice", "items", "totals"],
+      properties: {
+        supplier: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "gstin", "address", "phone"],
+          properties: {
+            name: { type: ["string", "null"] },
+            gstin: { type: ["string", "null"] },
+            address: { type: ["string", "null"] },
+            phone: { type: ["string", "null"] },
+          },
+        },
+        invoice: {
+          type: "object",
+          additionalProperties: false,
+          required: ["number", "date"],
+          properties: {
+            number: { type: ["string", "null"] },
+            date: { type: ["string", "null"] },
+          },
+        },
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["medicine", "manufacturer", "hsn", "pack", "batch", "expiry", "quantity", "free", "mrp", "rate", "gst", "taxable_amount", "amount"],
+            properties: {
+              medicine: { type: ["string", "null"] },
+              manufacturer: { type: ["string", "null"] },
+              hsn: { type: ["string", "null"] },
+              pack: { type: ["string", "null"] },
+              batch: { type: ["string", "null"] },
+              expiry: { type: ["string", "null"] },
+              quantity: { type: ["number", "null"] },
+              free: { type: ["number", "null"] },
+              mrp: { type: ["number", "null"] },
+              rate: { type: ["number", "null"] },
+              gst: { type: ["number", "null"] },
+              taxable_amount: { type: ["number", "null"] },
+              amount: { type: ["number", "null"] },
+            },
+          },
+        },
+        totals: {
+          type: "object",
+          additionalProperties: false,
+          required: ["subtotal", "tax", "grand_total"],
+          properties: {
+            subtotal: { type: ["number", "null"] },
+            tax: { type: ["number", "null"] },
+            grand_total: { type: ["number", "null"] },
+          },
+        },
+      },
+    },
+  },
+};
 
 function logOcr(event, details = {}) {
   console.info(`[OCR] ${event}`, JSON.stringify(details));
@@ -288,6 +355,46 @@ function extractContentText(response) {
   return "";
 }
 
+function safeResponsePreview(content) {
+  return String(content || "")
+    .replace(/data:[^\s"']+/gi, "[data-url-redacted]")
+    .replace(/sk-[A-Za-z0-9_-]+/g, "[api-key-redacted]")
+    .slice(0, 240);
+}
+
+function extractJsonObjectText(content) {
+  const source = String(content || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  const start = source.indexOf("{");
+  if (start < 0) return source;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (character === "\\") escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      continue;
+    }
+    if (character === "{") depth += 1;
+    if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  return source.slice(start);
+}
+
+function parseOcrJsonContent(content) {
+  return JSON.parse(extractJsonObjectText(content));
+}
+
 async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
   if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
     throw new Error("Missing invoice image data.");
@@ -366,17 +473,25 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
 
     const rawContent = extractContentText(completion);
     if (!rawContent.trim()) {
-      logOcr("openrouter response parsing failed", { reason: "empty_content" });
+      logOcr("openrouter response parsing failed", {
+        reason: "empty_content",
+        contentLength: 0,
+        finishReason: completion?.choices?.[0]?.finish_reason || null,
+      });
       throw createOcrError("Unable to process the invoice. Please try again.", { reason: "empty_content" });
     }
 
     let payload;
     try {
-      payload = JSON.parse(rawContent);
+      payload = parseOcrJsonContent(rawContent);
     } catch (error) {
       logOcr("openrouter response parsing failed", {
         reason: "invalid_json",
         message: error.message,
+        contentLength: rawContent.length,
+        finishReason: completion?.choices?.[0]?.finish_reason || null,
+        firstSafePortion: safeResponsePreview(rawContent),
+        lastSafePortion: safeResponsePreview(rawContent.slice(-240)),
       });
       throw createOcrError("Unable to process the invoice. Please try again.", { reason: "invalid_json" });
     }
@@ -435,6 +550,8 @@ module.exports = {
   validateGstin,
   sanitizeOcrJson,
   validateOcrExtractionPayload,
+  extractJsonObjectText,
+  parseOcrJsonContent,
   ensureImageIsSupported,
   extractInvoiceFromOpenAI,
 };
