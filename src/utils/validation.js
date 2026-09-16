@@ -5,6 +5,8 @@ const phoneSchema = Joi.string().pattern(/^[0-9+\-()\s]{7,15}$/).trim();
 const positiveIntSchema = Joi.number().integer().positive();
 const nonNegativeIntSchema = Joi.number().integer().min(0);
 const dateSchema = Joi.date().iso();
+const nullableDateSchema = Joi.alternatives().try(Joi.date().iso(), Joi.string().isoDate().allow(''), Joi.valid(null)).optional();
+const nullableBooleanSchema = Joi.boolean().optional().allow(null);
 
 const authRegisterSchema = Joi.object({
   username: Joi.string().trim().min(3).max(50).required(),
@@ -16,6 +18,8 @@ const authRegisterSchema = Joi.object({
   phone: Joi.string().trim().max(30).optional(),
   gstin: Joi.string().trim().max(100).optional(),
   license_no: Joi.string().trim().max(100).optional(),
+  license_number: Joi.string().trim().max(100).allow('').optional(),
+  license_expiry_date: nullableDateSchema,
   pharmacy_email: emailSchema.optional(),
 });
 
@@ -50,7 +54,7 @@ const customerSchema = Joi.object({
   phone: phoneSchema.required(),
   email: emailSchema.allow(""),
   address: Joi.string().trim().max(500).allow(""),
-  date_of_birth: Joi.string().optional(),
+  date_of_birth: nullableDateSchema,
 });
 
 const purchaseItemSchema = Joi.object({
@@ -77,6 +81,9 @@ const settingsSchema = Joi.object({
   owner_name: Joi.string().trim().max(200).optional(),
   gstin: Joi.string().trim().max(100).optional(),
   drug_license_number: Joi.string().trim().max(100).optional(),
+  license_number: Joi.string().trim().max(100).allow('').optional(),
+  license_expiry_date: nullableDateSchema,
+  show_drug_classification: nullableBooleanSchema,
   address_line_1: Joi.string().trim().max(300).optional(),
   address_line_2: Joi.string().trim().max(300).optional(),
   city: Joi.string().trim().max(150).optional(),

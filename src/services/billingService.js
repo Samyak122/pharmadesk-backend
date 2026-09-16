@@ -155,6 +155,8 @@ async function createInvoice(payload, pharmacyId) {
           quantity: quantityFromBatch,
           unit_price: unitPrice,
           total_price: totalPrice,
+          is_narcotic: Boolean(medicine?.is_narcotic ?? item.is_narcotic ?? false),
+          is_schedule_h1: Boolean(medicine?.is_schedule_h1 ?? item.is_schedule_h1 ?? false),
         });
       }
 
@@ -353,6 +355,8 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
           quantity: quantityFromBatch,
           unit_price: unitPrice,
           total_price: totalPrice,
+          is_narcotic: Boolean(medicine?.is_narcotic ?? item.is_narcotic ?? false),
+          is_schedule_h1: Boolean(medicine?.is_schedule_h1 ?? item.is_schedule_h1 ?? false),
         });
       }
 

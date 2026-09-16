@@ -35,6 +35,16 @@ test('accepts empty optional email and address', () => {
   assert.equal(error, undefined);
 });
 
+test('accepts optional date_of_birth value', () => {
+  const { error } = customerSchema.validate({
+    customer_name: 'Rahul Sharma',
+    phone: '9876543210',
+    date_of_birth: '2000-05-15',
+  });
+
+  assert.equal(error, undefined);
+});
+
 test('rejects missing customer name or phone', () => {
   assert.ok(customerSchema.validate({ phone: '9876543210' }).error);
   assert.ok(customerSchema.validate({ customer_name: 'Rahul Sharma' }).error);

@@ -43,6 +43,16 @@ const InvoiceItem = sequelize.define(
       allowNull: false,
       defaultValue: 0,
     },
+    is_narcotic: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    is_schedule_h1: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     pharmacy_id: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const jwt = require('jsonwebtoken');
-const { validate, authRegisterSchema } = require('../src/utils/validation');
+const { validate, authRegisterSchema, settingsSchema } = require('../src/utils/validation');
 const { signToken } = require('../src/services/authService');
 
 test('rejects lowercase or unsupported roles for registration', () => {
@@ -50,4 +50,14 @@ test('signToken includes tenant and role claims', () => {
   assert.equal(payload.pharmacy_id, 3);
   assert.equal(payload.role, 'Admin');
   assert.equal(payload.username, 'alice');
+});
+
+test('accepts optional pharmacist license details in settings payloads', () => {
+  const { error } = settingsSchema.validate({
+    license_number: 'DL-2025-001',
+    license_expiry_date: '2026-12-31',
+    show_drug_classification: true,
+  });
+
+  assert.equal(error, undefined);
 });

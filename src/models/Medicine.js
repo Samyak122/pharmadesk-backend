@@ -15,6 +15,16 @@ const Medicine = sequelize.define(
     uses: DataTypes.TEXT,
     side_effects: DataTypes.TEXT,
     image_url: DataTypes.TEXT,
+    is_narcotic: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    is_schedule_h1: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     excellent_review: DataTypes.DECIMAL,
     average_review: DataTypes.DECIMAL,
     poor_review: DataTypes.DECIMAL,

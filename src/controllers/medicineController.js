@@ -23,6 +23,8 @@ exports.searchMedicine = async (req, res) => {
         "medicine_name",
         "manufacturer",
         "composition",
+        "is_narcotic",
+        "is_schedule_h1",
       ],
 
       limit: 20,
@@ -40,7 +42,7 @@ exports.searchMedicine = async (req, res) => {
 
 exports.createMedicine = async (req, res) => {
   try {
-    const { medicine_name, manufacturer, composition, category, hsn_code, gst_percent, barcode } = req.body || {};
+    const { medicine_name, manufacturer, composition, category, hsn_code, gst_percent, barcode, is_narcotic, is_schedule_h1 } = req.body || {};
 
     if (!medicine_name || !String(medicine_name).trim()) {
       return res.status(400).json({
@@ -53,6 +55,8 @@ exports.createMedicine = async (req, res) => {
       manufacturer: manufacturer ? String(manufacturer).trim() : null,
       composition: composition ? String(composition).trim() : null,
       uses: category ? String(category).trim() : null,
+      is_narcotic: Boolean(is_narcotic),
+      is_schedule_h1: Boolean(is_schedule_h1),
       side_effects: [hsn_code, gst_percent, barcode].filter((value) => value !== undefined && value !== null && value !== '').length
         ? JSON.stringify({
             hsn_code: hsn_code ? String(hsn_code).trim() : null,

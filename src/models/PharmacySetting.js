@@ -84,6 +84,11 @@ const PharmacySetting = sequelize.define(
       allowNull: true,
       defaultValue: "Asia/Kolkata",
     },
+    show_drug_classification: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
   },
   {
     tableName: "pharmacy_settings",

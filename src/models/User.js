@@ -37,6 +37,14 @@ const User = sequelize.define(
         key: "pharmacy_id",
       },
     },
+    license_number: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+    },
+    license_expiry_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
     is_active: {
       type: DataTypes.BOOLEAN,
       allowNull: false,

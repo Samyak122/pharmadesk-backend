@@ -12,6 +12,8 @@ function signToken(user) {
       pharmacy_id: user.pharmacy_id,
       username: user.username,
       role: user.role,
+      license_number: user.license_number || null,
+      license_expiry_date: user.license_expiry_date || null,
     },
     process.env.JWT_SECRET || "pharmadesk-secret",
     { expiresIn: "8h" }
@@ -60,6 +62,8 @@ async function registerUser(payload) {
         password_hash,
         role: normalizedRole,
         pharmacy_id: pharmacy.pharmacy_id,
+        license_number: payload.license_number || payload.licenseNo || null,
+        license_expiry_date: payload.license_expiry_date || payload.licenseExpiryDate || null,
       },
       { transaction }
     );
@@ -71,6 +75,8 @@ async function registerUser(payload) {
       username: user.username,
       email: user.email,
       role: user.role,
+      license_number: user.license_number || null,
+      license_expiry_date: user.license_expiry_date || null,
     };
   } catch (error) {
     await transaction.rollback();
@@ -104,6 +110,8 @@ async function loginUser(payload) {
       username: user.username,
       email: user.email,
       role: user.role,
+      license_number: user.license_number || null,
+      license_expiry_date: user.license_expiry_date || null,
     },
   };
 }
