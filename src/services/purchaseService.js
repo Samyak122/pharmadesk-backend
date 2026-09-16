@@ -42,7 +42,7 @@ async function createPurchase(payload, pharmacyId) {
 
   const createdItems = [];
   for (const item of items) {
-    const { medicine_id, batch_no, expiry_date, quantity, unit_cost, selling_price, min_stock, location } = item;
+    const { medicine_id, batch_no, expiry_date, quantity, unit_cost, selling_price, min_stock, location, is_narcotic, is_schedule_h1 } = item;
 
     if (!medicine_id || !batch_no || !expiry_date || !quantity) {
       throw new Error("Each purchase item must include medicine_id, batch_no, expiry_date, and quantity.");
@@ -51,6 +51,13 @@ async function createPurchase(payload, pharmacyId) {
     const medicine = await Medicine.findByPk(medicine_id);
     if (!medicine) {
       throw new Error(`Medicine ${medicine_id} not found.`);
+    }
+
+    if (is_narcotic !== undefined || is_schedule_h1 !== undefined) {
+      await medicine.update({
+        is_narcotic: is_narcotic !== undefined ? Boolean(is_narcotic) : medicine.is_narcotic,
+        is_schedule_h1: is_schedule_h1 !== undefined ? Boolean(is_schedule_h1) : medicine.is_schedule_h1,
+      });
     }
 
     let inventoryBatch = await Inventory.findOne({

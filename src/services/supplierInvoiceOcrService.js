@@ -523,6 +523,8 @@ async function confirmSupplierInvoiceExtraction(payload, pharmacyId) {
       selling_price,
       min_stock: 5,
       location: "",
+      is_narcotic: Boolean(row.is_narcotic ?? item.is_narcotic ?? medicine.is_narcotic ?? false),
+      is_schedule_h1: Boolean(row.is_schedule_h1 ?? item.is_schedule_h1 ?? medicine.is_schedule_h1 ?? false),
       inventory_batch: existingInventoryBatch,
     });
   }

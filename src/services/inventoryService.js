@@ -97,7 +97,7 @@ async function getFefoBatches(medicineId, pharmacyId) {
       {
         model: Medicine,
         as: "medicine",
-        attributes: ["medicine_id", "medicine_name", "manufacturer"],
+        attributes: ["medicine_id", "medicine_name", "manufacturer", "is_narcotic", "is_schedule_h1"],
       },
     ],
   });
@@ -170,6 +170,7 @@ async function createInventory(payload, pharmacyId) {
 async function updateInventory(stockId, payload, pharmacyId) {
   const batch = await Inventory.findOne({
     where: { stock_id: stockId, pharmacy_id: pharmacyId, is_active: true },
+    include: [{ model: Medicine, as: "medicine", attributes: ["medicine_id", "is_narcotic", "is_schedule_h1"] }],
   });
 
   if (!batch) {
@@ -186,7 +187,20 @@ async function updateInventory(stockId, payload, pharmacyId) {
     }
   }
 
-  await batch.update(payload);
+  const medicinePayload = {};
+  if (payload.is_narcotic !== undefined) {
+    medicinePayload.is_narcotic = Boolean(payload.is_narcotic);
+  }
+  if (payload.is_schedule_h1 !== undefined) {
+    medicinePayload.is_schedule_h1 = Boolean(payload.is_schedule_h1);
+  }
+
+  if (Object.keys(medicinePayload).length > 0 && batch.medicine) {
+    await batch.medicine.update(medicinePayload);
+  }
+
+  const { is_narcotic, is_schedule_h1, ...inventoryPayload } = payload;
+  await batch.update(inventoryPayload);
   return batch;
 }
 
