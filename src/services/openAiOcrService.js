@@ -5,6 +5,33 @@ const OCR_DEFAULT_MODEL = "openrouter/free";
 const OPENROUTER_REQUEST_TIMEOUT_MS = 60 * 1000;
 const OCR_ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = Number(process.env.OPENAI_OCR_MAX_BYTES || 8 * 1024 * 1024);
+const EXPIRY_RESPONSE_FORMAT = {
+  type: "json_schema",
+  json_schema: {
+    name: "pharmacy_invoice_expiry_rows",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["items"],
+      properties: {
+        items: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["medicine", "batch", "expiry"],
+            properties: {
+              medicine: { type: ["string", "null"] },
+              batch: { type: ["string", "null"] },
+              expiry: { type: ["string", "null"] },
+            },
+          },
+        },
+      },
+    },
+  },
+};
 const OCR_RESPONSE_FORMAT = {
   type: "json_schema",
   json_schema: {
@@ -399,6 +426,87 @@ function isOcrResponseTruncated(response) {
   return response?.choices?.[0]?.finish_reason === "length";
 }
 
+function normalizeMatchValue(value) {
+  return normalizeWhitespace(value).toLowerCase();
+}
+
+function normalizeExpiryCandidate(value) {
+  const text = normalizeWhitespace(value).replace(/\s+/g, "");
+  const match = text.match(/^(\d{1,2})[-/](\d{2}|\d{4})$/);
+  if (!match) return null;
+  const month = Number(match[1]);
+  if (month < 1 || month > 12) return null;
+  const year = match[2].length === 2 ? `20${match[2]}` : match[2];
+  return normalizeInvoiceDate(`${month}-${year}`);
+}
+
+function mergeExpiryPass(firstPass, expiryItems) {
+  const merged = {
+    ...firstPass,
+    items: (firstPass.items || []).map((item) => ({ ...item })),
+  };
+  const candidates = Array.isArray(expiryItems) ? expiryItems : [];
+
+  merged.items.forEach((item) => {
+    const medicine = normalizeMatchValue(item.medicine);
+    const batch = normalizeMatchValue(item.batch);
+    const exactMatch = candidates.find((candidate) => (
+      medicine && batch
+      && normalizeMatchValue(candidate.medicine) === medicine
+      && normalizeMatchValue(candidate.batch) === batch
+    ));
+    const batchMatch = batch
+      ? candidates.find((candidate) => normalizeMatchValue(candidate.batch) === batch)
+      : null;
+    const match = exactMatch || batchMatch;
+    const expiry = normalizeExpiryCandidate(match?.expiry);
+    if (expiry) item.expiry = expiry;
+  });
+
+  return merged;
+}
+
+async function runExpiryExtraction({ openrouter, imageUrl, model }) {
+  const prompt = [
+    "You are extracting expiry dates from a pharmacy GST invoice.",
+    "Read ONLY the product table. The table columns are: HSN | MFG | PRODUCT DESCRIPTION | PACK | QTY | FREE | BATCH | MRP | EXP | RATE | Gst% | AMOUNT.",
+    "The EXP column is immediately to the right of MRP and immediately to the left of RATE.",
+    "For EVERY product row, return medicine, batch, and expiry. Match expiry to the SAME medicine and SAME batch row.",
+    "Expiry is normally printed as MM-YY, MM/YY, MM-YYYY, or MM/YYYY.",
+    "Do not use invoice date, invoice time, manufacturing date, batch number, HSN, MRP, rate, or amount as expiry.",
+    "Do not infer or calculate expiry. If the EXP cell is genuinely unreadable, return null.",
+    "Return only valid JSON matching the requested schema.",
+  ].join("\n");
+
+  try {
+    const completion = await openrouter.chat.completions.create({
+      model,
+      timeout: OPENROUTER_REQUEST_TIMEOUT_MS,
+      temperature: 0.1,
+      response_format: EXPIRY_RESPONSE_FORMAT,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: imageUrl } },
+        ],
+      }],
+      max_completion_tokens: 2000,
+    });
+
+    if (isOcrResponseTruncated(completion)) {
+      throw new Error("Expiry extraction response was truncated.");
+    }
+
+    const content = extractContentText(completion);
+    const payload = parseOcrJsonContent(content);
+    return Array.isArray(payload.items) ? payload.items : [];
+  } catch (error) {
+    logOcr("expiry pass failed", getSafeOpenRouterError(error));
+    return [];
+  }
+}
+
 async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
   if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
     throw new Error("Missing invoice image data.");
@@ -514,11 +622,24 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     }
     const validated = validateOcrExtractionPayload(payload);
 
-    const firstItem = validated.items[0] || null;
+    if (!Array.isArray(validated.items) || validated.items.length === 0) {
+      logOcr("openrouter response parsing failed", { reason: "no_invoice_items" });
+      throw createOcrError("Unable to process the invoice. Please try again.", { reason: "no_invoice_items" });
+    }
+
+    logOcr("expiry pass started");
+    const expiryItems = await runExpiryExtraction({ openrouter, imageUrl, model });
+    const merged = mergeExpiryPass(validated, expiryItems);
+    logOcr("expiry pass completed", {
+      itemCount: merged.items.length,
+      expiryDetectedCount: merged.items.filter((item) => Boolean(item.expiry)).length,
+    });
+
+    const firstItem = merged.items[0] || null;
     logOcr("parsed invoice summary", {
-      supplier: validated.supplier,
-      invoice: validated.invoice,
-      itemCount: validated.items.length,
+      supplier: merged.supplier,
+      invoice: merged.invoice,
+      itemCount: merged.items.length,
       firstItem: firstItem ? {
         medicine: firstItem.medicine,
         batch: firstItem.batch,
@@ -534,12 +655,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
       } : null,
     });
 
-    if (!Array.isArray(validated.items) || validated.items.length === 0) {
-      logOcr("openrouter response parsing failed", { reason: "no_invoice_items" });
-      throw createOcrError("Unable to process the invoice. Please try again.", { reason: "no_invoice_items" });
-    }
-
-    return validated;
+    return merged;
   } catch (error) {
     if (error?.code === "OCR_FAILED") {
       throw error;
@@ -590,6 +706,9 @@ module.exports = {
   extractJsonObjectText,
   parseOcrJsonContent,
   isOcrResponseTruncated,
+  normalizeExpiryCandidate,
+  mergeExpiryPass,
+  runExpiryExtraction,
   ensureImageIsSupported,
   extractInvoiceFromOpenAI,
 };

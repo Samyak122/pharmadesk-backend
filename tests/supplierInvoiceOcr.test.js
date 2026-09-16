@@ -8,6 +8,9 @@ const {
   validateOcrExtractionPayload,
   parseOcrJsonContent,
   isOcrResponseTruncated,
+  normalizeExpiryCandidate,
+  mergeExpiryPass,
+  runExpiryExtraction,
 } = require('../src/services/openAiOcrService');
 
 const validOcrJson = JSON.stringify({
@@ -32,6 +35,71 @@ test('does not repair malformed or truncated OCR JSON', () => {
 test('identifies a provider response truncated by the output limit', () => {
   assert.equal(isOcrResponseTruncated({ choices: [{ finish_reason: 'length' }] }), true);
   assert.equal(isOcrResponseTruncated({ choices: [{ finish_reason: 'stop' }] }), false);
+});
+
+test('extracts only valid month-year expiry candidates', () => {
+  assert.equal(normalizeExpiryCandidate('11-27'), '2027-11-01');
+  assert.equal(normalizeExpiryCandidate('03/2028'), '2028-03-01');
+  assert.equal(normalizeExpiryCandidate('2027-11-15'), null);
+  assert.equal(normalizeExpiryCandidate('unreadable'), null);
+});
+
+test('runs the targeted expiry pass and parses its items', async () => {
+  const openrouter = {
+    chat: {
+      completions: {
+        create: async () => ({
+          choices: [{ finish_reason: 'stop', message: { content: JSON.stringify({ items: [{ medicine: 'VITCOFOL', batch: 'A123', expiry: '11-27' }] }) } }],
+        }),
+      },
+    },
+  };
+
+  const items = await runExpiryExtraction({ openrouter, imageUrl: 'data:image/jpeg;base64,safe-test', model: 'openai/gpt-5.6-luna' });
+  assert.deepEqual(items, [{ medicine: 'VITCOFOL', batch: 'A123', expiry: '11-27' }]);
+});
+
+test('merges expiry by medicine and batch without overwriting first-pass fields', () => {
+  const firstPass = {
+    supplier: { name: 'Supplier' },
+    invoice: { number: 'INV-1' },
+    items: [{
+      medicine: 'VITCOFOL ORAL SUS.20',
+      batch: 'A123',
+      expiry: null,
+      quantity: 10,
+      free: 2,
+      mrp: 125,
+      rate: 100,
+      gst: 12,
+      hsn: '3004',
+      taxable_amount: 1000,
+      amount: 1120,
+    }],
+    totals: { grand_total: 1120 },
+  };
+
+  const merged = mergeExpiryPass(firstPass, [{ medicine: 'VITCOFOL', batch: 'A123', expiry: '11/27' }]);
+  assert.equal(merged.items[0].expiry, '2027-11-01');
+  assert.equal(merged.items[0].quantity, 10);
+  assert.equal(merged.items[0].rate, 100);
+  assert.equal(merged.items[0].gst, 12);
+  assert.equal(merged.items[0].hsn, '3004');
+  assert.equal(merged.items[0].amount, 1120);
+});
+
+test('keeps expiry null when the second pass is unreadable or fails', async () => {
+  const firstPass = { items: [{ medicine: 'VITCOFOL', batch: 'A123', expiry: null, rate: 100 }] };
+  const unreadable = mergeExpiryPass(firstPass, [{ medicine: 'VITCOFOL', batch: 'A123', expiry: null }]);
+  assert.equal(unreadable.items[0].expiry, null);
+
+  const failingOpenrouter = {
+    chat: { completions: { create: async () => { throw new Error('provider unavailable'); } } },
+  };
+  const failedItems = await runExpiryExtraction({ openrouter: failingOpenrouter, imageUrl: 'data:image/jpeg;base64,safe-test', model: 'openai/gpt-5.6-luna' });
+  assert.deepEqual(failedItems, []);
+  assert.equal(mergeExpiryPass(firstPass, failedItems).items[0].expiry, null);
+  assert.equal(mergeExpiryPass(firstPass, failedItems).items[0].rate, 100);
 });
 
 test('valid GSTIN stays intact and invalid GSTIN is nulled', () => {
