@@ -395,6 +395,10 @@ function parseOcrJsonContent(content) {
   return JSON.parse(extractJsonObjectText(content));
 }
 
+function isOcrResponseTruncated(response) {
+  return response?.choices?.[0]?.finish_reason === "length";
+}
+
 async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
   if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
     throw new Error("Missing invoice image data.");
@@ -452,7 +456,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
       model,
       timeout: OPENROUTER_REQUEST_TIMEOUT_MS,
       temperature: 0.1,
-      response_format: { type: "json_object" },
+      response_format: OCR_RESPONSE_FORMAT,
       messages: [
         {
           role: "user",
@@ -462,7 +466,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
           ],
         },
       ],
-      max_tokens: 2400,
+      max_completion_tokens: 8000,
     });
 
     logOcr("openrouter response received", {
@@ -472,6 +476,15 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     });
 
     const rawContent = extractContentText(completion);
+    if (isOcrResponseTruncated(completion)) {
+      logOcr("openrouter response truncated", {
+        model,
+        contentLength: rawContent.length,
+        finishReason: completion?.choices?.[0]?.finish_reason || null,
+      });
+      throw createOcrError("Unable to process the invoice. Please try again.", { reason: "response_truncated" });
+    }
+
     if (!rawContent.trim()) {
       logOcr("openrouter response parsing failed", {
         reason: "empty_content",
@@ -552,6 +565,7 @@ module.exports = {
   validateOcrExtractionPayload,
   extractJsonObjectText,
   parseOcrJsonContent,
+  isOcrResponseTruncated,
   ensureImageIsSupported,
   extractInvoiceFromOpenAI,
 };

@@ -7,6 +7,7 @@ const {
   sanitizeOcrJson,
   validateOcrExtractionPayload,
   parseOcrJsonContent,
+  isOcrResponseTruncated,
 } = require('../src/services/openAiOcrService');
 
 const validOcrJson = JSON.stringify({
@@ -26,6 +27,11 @@ test('parses valid OCR JSON surrounded by explanation', () => {
 
 test('does not repair malformed or truncated OCR JSON', () => {
   assert.throws(() => parseOcrJsonContent(`${validOcrJson.slice(0, -2)}`), SyntaxError);
+});
+
+test('identifies a provider response truncated by the output limit', () => {
+  assert.equal(isOcrResponseTruncated({ choices: [{ finish_reason: 'length' }] }), true);
+  assert.equal(isOcrResponseTruncated({ choices: [{ finish_reason: 'stop' }] }), false);
 });
 
 test('valid GSTIN stays intact and invalid GSTIN is nulled', () => {
