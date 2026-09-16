@@ -266,7 +266,7 @@ function sanitizeOcrJson(rawJson) {
   const normalizedItems = items.map((item) => {
     const entry = item && typeof item === "object" ? item : {};
     const rawFree = entry.free;
-    const freeParsed = rawFree === undefined || rawFree === null || rawFree === "" ? 0 : parseNullableNumber(rawFree);
+    const freeParsed = rawFree === undefined || rawFree === null || rawFree === "" ? null : parseNullableNumber(rawFree);
     const quantity = parseNullableNumber(entry.quantity);
     const mrp = parseNullableNumber(entry.mrp);
     const rate = parseNullableNumber(entry.rate);
@@ -319,7 +319,7 @@ function validateOcrExtractionPayload(payload) {
     nextItem.batch = safeString(nextItem.batch, null);
     nextItem.expiry = normalizeInvoiceDate(nextItem.expiry);
     nextItem.quantity = parseNullableNumber(nextItem.quantity);
-    nextItem.free = nextItem.free === null || nextItem.free === undefined ? 0 : parseNullableNumber(nextItem.free);
+    nextItem.free = nextItem.free === null || nextItem.free === undefined ? null : parseNullableNumber(nextItem.free);
     nextItem.mrp = parseNullableNumber(nextItem.mrp);
     nextItem.rate = parseNullableNumber(nextItem.rate);
     nextItem.gst = parseNullableNumber(nextItem.gst);
@@ -430,25 +430,29 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
   const imageUrl = `data:${mimeType};base64,${base64Image}`;
 
   const prompt = [
-    "You are extracting a pharmaceutical supplier invoice from an image.",
-    "Read only information visible in the invoice image.",
-    "Never invent, guess, calculate, or assume a value that cannot be reliably read.",
-    "If a value is unclear or missing, return null.",
-    "Do not convert an unreadable value into 0.",
-    "Do not guess batch numbers.",
-    "Do not guess expiry dates.",
-    "Do not guess quantities.",
-    "Do not guess MRP.",
-    "Do not guess purchase rate.",
-    "Do not guess GST.",
-    "Do not guess HSN.",
-    "Preserve the exact visible medicine/product name as much as possible.",
+    "You are extracting a GST pharmacy supplier invoice from an image.",
+    "First identify the invoice header: supplier name, supplier GSTIN, supplier address, supplier phone, invoice number, and invoice date. Search the entire header for Invoice No, Invoice Number, Inv No, Bill No, Bill Number, Invoice Date, Bill Date, and Date.",
+    "Do not confuse invoice number with Order No, PO No, GSTIN, phone number, or another reference number.",
+    "Then identify the medicine table. Read the actual visible column headers and map each value to its column; do not assume fixed column positions.",
+    "Possible headers include Product, Product Name, Description, Item, HSN, HSN Code, Batch, Batch No, Batch Number, Expiry, Exp, Exp. Date, Qty, Quantity, Free, F.Qty, Free Qty, MRP, Rate, PTR, Purchase Rate, GST, GST%, Taxable Value, Taxable Amount, Amount, and Net Amount.",
+    "Medicine names may contain multiple words or wrap across multiple visual lines. Combine wrapped lines into one item and preserve the complete product description. Never return an empty medicine when the row clearly contains a product description.",
+    "Distinguish batch numbers from invoice numbers, HSN codes, medicine codes, and serial numbers. If a batch is unreadable, return null; never invent one.",
+    "Recognize expiry formats MM/YY, MM-YY, MM/YYYY, and MM-YYYY. Normalize only a clearly readable expiry. Never interpret unrelated numbers as expiry.",
+    "Read Qty separately from Free Qty. Do not convert missing Free Qty to 0 unless the invoice explicitly shows zero. Missing or unreadable Free must be null.",
+    "Read MRP from the MRP column only. Read Rate, PTR, or Purchase Rate from its actual column. Do not confuse MRP with Rate. If Rate is difficult to read, return null rather than 0.",
+    "Read the actual GST percentage from the GST or tax column, such as 5%, 12%, or 18%. If GST is present but difficult to read, return null rather than 0.",
+    "Read HSN only from the HSN column and preserve the complete HSN code.",
+    "Read the final row amount or net amount from the correct Amount column. Keep taxable amount separate when present; do not confuse taxable amount with final amount.",
+    "Before generating JSON, mentally reconstruct and verify the table alignment: Medicine | HSN | Batch | Expiry | Qty | Free | MRP | Rate | GST | Taxable Amount | Amount.",
+    "A medicine row may wrap onto multiple visual lines. Combine those lines into one item instead of creating multiple medicines.",
+    "Before returning JSON, verify that the number of items matches the visible rows, each medicine owns its batch and expiry, quantity came from Qty, MRP came from MRP, Rate came from Rate/PTR, GST came from GST, and Amount came from Amount/Net Amount.",
+    "Do not infer Narcotic or Schedule H1 from a medicine name. Only set those flags when explicitly indicated or confirmed by the pharmacist; otherwise use the existing schema's false/null value.",
+    "Never invent, guess, calculate, or assume any value that cannot be reliably read. Unreadable, missing, or uncertain values must be null, never 0, never unknown, and never a guessed value.",
+    "Do not return markdown fences or commentary. Return JSON only.",
     "Your output must be valid JSON that matches exactly this shape:",
     "{\n  \"supplier\": { \"name\": null, \"gstin\": null, \"address\": null, \"phone\": null },\n  \"invoice\": { \"number\": null, \"date\": null },\n  \"items\": [{ \"medicine\": null, \"manufacturer\": null, \"hsn\": null, \"pack\": null, \"batch\": null, \"expiry\": null, \"quantity\": null, \"free\": null, \"mrp\": null, \"rate\": null, \"gst\": null, \"taxable_amount\": null, \"amount\": null }],\n  \"totals\": { \"subtotal\": null, \"tax\": null, \"grand_total\": null }\n}",
-    "Important: use null for unreadable values and do not use 0 unless the invoice clearly indicates no free quantity and a free column is present and blank.",
-    "For Indian pharmaceutical supplier invoices, reliably detect supplier GSTIN, invoice number, invoice date, medicine names, manufacturer, HSN, pack, batch, expiry, quantity, free quantity, MRP, purchase rate, GST percentage, taxable amount, invoice totals, and supplier address/phone when visible.",
-    "Handle varying table layouts, different column orders, multi-line medicine names, abbreviations, number formats, and fonts. Focus on visual understanding rather than fixed positions.",
-    "Do not return markdown fences or commentary. Return JSON only.",
+    "For Indian pharmaceutical supplier invoices, detect supplier GSTIN, invoice number, invoice date, medicine names, manufacturer, HSN, pack, batch, expiry, quantity, free quantity, MRP, purchase rate, GST percentage, taxable amount, invoice totals, and supplier address/phone only when visible.",
+    "Handle varying table layouts, different column orders, abbreviations, number formats, and fonts by following the actual headers and visual alignment.",
   ].join("\n");
 
   try {

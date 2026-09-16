@@ -109,6 +109,7 @@ test('malformed and partially readable invoice payloads are rejected without zer
   assert.equal(sanitized.invoice.date, null);
   assert.equal(sanitized.items[0].quantity, null);
   assert.equal(sanitized.items[0].mrp, null);
+  assert.equal(sanitized.items[0].free, null);
 });
 
 test('sanitizeOcrJson removes unsafe values and preserves null for unknown fields', () => {
