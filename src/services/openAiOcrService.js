@@ -2,6 +2,7 @@ const OpenAI = require("openai");
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const OCR_DEFAULT_MODEL = "openrouter/free";
+const OPENROUTER_REQUEST_TIMEOUT_MS = 60 * 1000;
 const OCR_ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = Number(process.env.OPENAI_OCR_MAX_BYTES || 8 * 1024 * 1024);
 
@@ -10,12 +11,30 @@ function logOcr(event, details = {}) {
 }
 
 function getSafeOpenRouterError(error) {
+  const providerError = error?.response?.data?.error || error?.error || {};
   return {
-    type: error?.type || error?.name || "OpenRouterError",
-    status: error?.status || error?.statusCode || null,
-    message: error?.error?.message || error?.message || "Unknown OpenAI error",
-    code: error?.code || error?.error?.code || null,
+    name: error?.name || "OpenRouterError",
+    message: error?.message || "Unknown OpenRouter error",
+    status: error?.status || error?.statusCode || error?.response?.status || null,
+    code: error?.code || null,
+    providerType: providerError?.type || null,
+    providerCode: providerError?.code || null,
+    providerMessage: providerError?.message || null,
   };
+}
+
+function isRequestTimeout(error, safeError) {
+  return error?.name === "TimeoutError"
+    || error?.code === "ETIMEDOUT"
+    || error?.code === "ECONNABORTED"
+    || safeError.status === 408
+    || /timeout|timed out/i.test(safeError.message);
+}
+
+function isNetworkError(error, safeError) {
+  return !safeError.status
+    && ["ENOTFOUND", "EAI_AGAIN", "ECONNRESET", "ECONNREFUSED", "ENETUNREACH"].includes(error?.code)
+    || (!safeError.status && /network|dns|getaddrinfo|socket|connect/i.test(safeError.message));
 }
 
 function createOcrError(message, details = {}) {
@@ -324,6 +343,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
   try {
     const completion = await openrouter.chat.completions.create({
       model,
+      timeout: OPENROUTER_REQUEST_TIMEOUT_MS,
       temperature: 0.1,
       response_format: { type: "json_object" },
       messages: [
@@ -374,22 +394,33 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     }
 
     const safeError = getSafeOpenRouterError(error);
-    logOcr("openrouter request failed", safeError);
-
-    if (safeError.status === 401 || safeError.status === 403) {
-      throw createOcrError("OCR service authentication failed. Please contact support.", safeError);
+    if (isRequestTimeout(error, safeError)) {
+      logOcr("openrouter request timeout", safeError);
+      throw createOcrError("Unable to process the invoice. Please try again.", { ...safeError, reason: "timeout" });
     }
 
-    if (safeError.status === 429 || safeError.status >= 500) {
-      throw createOcrError("OCR service is temporarily unavailable. Please try again in a moment.", safeError);
+    const statusEvents = {
+      401: "openrouter authentication error",
+      402: "openrouter payment error",
+      403: "openrouter forbidden error",
+      408: "openrouter request timeout",
+      429: "openrouter rate limit error",
+    };
+    const event = statusEvents[safeError.status]
+      || (safeError.status >= 500 ? "openrouter provider error" : null)
+      || (isNetworkError(error, safeError) ? "openrouter network error" : "openrouter request failed");
+    logOcr(event, safeError);
+
+    if ([401, 402, 403, 408, 429].includes(safeError.status) || safeError.status >= 500 || isNetworkError(error, safeError)) {
+      throw createOcrError("Unable to process the invoice. Please try again.", safeError);
     }
 
     if (/image|vision|multimodal/i.test(safeError.message) && /support|accept|allow|capab|input|modal/i.test(safeError.message)) {
-      throw createOcrError("The configured OCR model does not support image input. Please contact support.", { ...safeError, reason: "image_input_not_supported" });
+      throw createOcrError("Unable to process the invoice. Please try again.", { ...safeError, reason: "image_input_not_supported" });
     }
 
     if (safeError.code === "model_not_found" || /model/i.test(safeError.message) && /not found|does not exist|unsupported|invalid/i.test(safeError.message)) {
-      throw createOcrError("OCR model configuration is invalid. Please contact support.", safeError);
+      throw createOcrError("Unable to process the invoice. Please try again.", safeError);
     }
 
     throw createOcrError("Unable to process the invoice. Please try again.", safeError);
