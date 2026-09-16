@@ -1,7 +1,7 @@
 const OpenAI = require("openai");
 
-const OCR_DEFAULT_MODEL = "gpt-4.1-mini";
-const OCR_SUPPORTED_MODELS = new Set(["gpt-4.1-mini", "gpt-4o-mini", "gpt-4o"]);
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+const OCR_DEFAULT_MODEL = "openrouter/free";
 const OCR_ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = Number(process.env.OPENAI_OCR_MAX_BYTES || 8 * 1024 * 1024);
 
@@ -9,9 +9,9 @@ function logOcr(event, details = {}) {
   console.info(`[OCR] ${event}`, JSON.stringify(details));
 }
 
-function getSafeOpenAiError(error) {
+function getSafeOpenRouterError(error) {
   return {
-    type: error?.type || error?.name || "OpenAIError",
+    type: error?.type || error?.name || "OpenRouterError",
     status: error?.status || error?.statusCode || null,
     message: error?.error?.message || error?.message || "Unknown OpenAI error",
     code: error?.code || error?.error?.code || null,
@@ -282,28 +282,20 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     throw new Error("The invoice image is too large. Please upload a smaller image under 8 MB.");
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
+    logOcr("openrouter configuration failed", { reason: "missing_api_key" });
     throw createOcrError("OCR is not configured. Please contact support.", { reason: "missing_api_key" });
   }
 
-  const configuredModel = process.env.OPENAI_OCR_MODEL?.trim();
-  const model = configuredModel && OCR_SUPPORTED_MODELS.has(configuredModel)
-    ? configuredModel
-    : OCR_DEFAULT_MODEL;
-  if (configuredModel && model !== configuredModel) {
-    logOcr("unsupported configured model; using default", {
-      configuredModel,
-      fallbackModel: OCR_DEFAULT_MODEL,
-    });
-  }
-  logOcr("openai request started", {
+  const model = process.env.OPENROUTER_OCR_MODEL?.trim() || OCR_DEFAULT_MODEL;
+  logOcr("openrouter request started", {
     model,
     mimeType,
     fileSize: fileBuffer.length,
   });
 
-  const openai = new OpenAI({ apiKey });
+  const openrouter = new OpenAI({ apiKey, baseURL: OPENROUTER_BASE_URL });
   const base64Image = fileBuffer.toString("base64");
   const imageUrl = `data:${mimeType};base64,${base64Image}`;
 
@@ -330,7 +322,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
   ].join("\n");
 
   try {
-    const completion = await openai.chat.completions.create({
+    const completion = await openrouter.chat.completions.create({
       model,
       temperature: 0.1,
       response_format: { type: "json_object" },
@@ -346,7 +338,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
       max_tokens: 2400,
     });
 
-    logOcr("openai response received", {
+    logOcr("openrouter response received", {
       model,
       responseId: completion?.id || null,
       contentLength: extractContentText(completion).length,
@@ -354,7 +346,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
 
     const rawContent = extractContentText(completion);
     if (!rawContent.trim()) {
-      logOcr("openai response parsing failed", { reason: "empty_content" });
+      logOcr("openrouter response parsing failed", { reason: "empty_content" });
       throw createOcrError("Unable to process the invoice. Please try again.", { reason: "empty_content" });
     }
 
@@ -362,7 +354,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     try {
       payload = JSON.parse(rawContent);
     } catch (error) {
-      logOcr("openai response parsing failed", {
+      logOcr("openrouter response parsing failed", {
         reason: "invalid_json",
         message: error.message,
       });
@@ -371,7 +363,7 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
     const validated = validateOcrExtractionPayload(payload);
 
     if (!Array.isArray(validated.items) || validated.items.length === 0) {
-      logOcr("openai response parsing failed", { reason: "no_invoice_items" });
+      logOcr("openrouter response parsing failed", { reason: "no_invoice_items" });
       throw createOcrError("Unable to process the invoice. Please try again.", { reason: "no_invoice_items" });
     }
 
@@ -381,8 +373,8 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
       throw error;
     }
 
-    const safeError = getSafeOpenAiError(error);
-    logOcr("openai request failed", safeError);
+    const safeError = getSafeOpenRouterError(error);
+    logOcr("openrouter request failed", safeError);
 
     if (safeError.status === 401 || safeError.status === 403) {
       throw createOcrError("OCR service authentication failed. Please contact support.", safeError);
@@ -390,6 +382,10 @@ async function extractInvoiceFromOpenAI({ fileBuffer, mimeType }) {
 
     if (safeError.status === 429 || safeError.status >= 500) {
       throw createOcrError("OCR service is temporarily unavailable. Please try again in a moment.", safeError);
+    }
+
+    if (/image|vision|multimodal/i.test(safeError.message) && /support|accept|allow|capab|input|modal/i.test(safeError.message)) {
+      throw createOcrError("The configured OCR model does not support image input. Please contact support.", { ...safeError, reason: "image_input_not_supported" });
     }
 
     if (safeError.code === "model_not_found" || /model/i.test(safeError.message) && /not found|does not exist|unsupported|invalid/i.test(safeError.message)) {
