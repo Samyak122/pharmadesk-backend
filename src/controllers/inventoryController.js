@@ -8,6 +8,7 @@ exports.createInventory = async (req, res) => {
       batch_no,
       expiry_date,
       quantity,
+      units_per_pack,
       unit_cost,
       selling_price,
       min_stock,
@@ -35,6 +36,7 @@ exports.createInventory = async (req, res) => {
         batch_no,
         expiry_date,
         quantity: Number(quantity),
+        units_per_pack: Number(units_per_pack || 1),
         unit_cost: Number(unit_cost || 0),
         selling_price: Number(selling_price || 0),
         min_stock: Number(min_stock || 5),
@@ -63,13 +65,17 @@ exports.getInventory = async (req, res) => {
       expiringSoon: req.query.expiringSoon,
       expired: req.query.expired === "true",
       medicine_id: req.query.medicine_id ? Number(req.query.medicine_id) : null,
+      includeSuppliers: req.query.includeSuppliers !== "false",
       pharmacyId: req.user?.pharmacy_id,
     });
 
-    const formatted = batches.map((batch) => ({
-      ...batch.toJSON(),
-      ...InventoryService.calculateBatchMetrics(batch.toJSON()),
-    }));
+    const formatted = batches.map((batch) => {
+      const data = typeof batch.toJSON === "function" ? batch.toJSON() : batch;
+      return {
+        ...data,
+        ...InventoryService.calculateBatchMetrics(data),
+      };
+    });
 
     res.json(formatted);
   } catch (error) {

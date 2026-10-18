@@ -37,6 +37,9 @@ function buildSalesRows(invoices = []) {
         batch_no: item.inventoryBatch?.batch_no || item.batch_no || "",
         expiry_date: item.inventoryBatch?.expiry_date || item.expiry_date || "",
         quantity: Number(item.quantity || 0),
+        pack_quantity: Number(item.pack_quantity || 0),
+        loose_quantity: Number(item.loose_quantity || 0),
+        units_per_pack: Number(item.units_per_pack || 1),
         unit_price: Number(item.unit_price || 0),
         gst_percent: gstPercent,
         gst_amount: lineGstAmount,
@@ -116,6 +119,7 @@ async function getInventoryReport(pharmacyId) {
     batch_no: batch.batch_no,
     expiry_date: batch.expiry_date,
     quantity: batch.quantity,
+    units_per_pack: batch.units_per_pack,
     selling_price: batch.selling_price,
     unit_cost: batch.unit_cost,
     location: batch.location,
@@ -194,6 +198,7 @@ async function getBatchReport(pharmacyId) {
     medicine_name: batch.medicine?.medicine_name || "Unknown",
     expiry_date: batch.expiry_date,
     quantity: batch.quantity,
+    units_per_pack: batch.units_per_pack,
     location: batch.location,
   }));
 }

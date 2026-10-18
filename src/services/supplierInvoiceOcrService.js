@@ -344,6 +344,13 @@ function findMedicineMatch(medicineName, catalog = []) {
   };
 }
 
+function classificationValue(row, field, medicine) {
+  if (row[field] !== undefined && typeof row[field] !== "boolean") {
+    throw new Error(`${field.replace(/_/g, " ")} must be selected as a true or false value.`);
+  }
+  return row[field] !== undefined ? row[field] : Boolean(medicine[field]);
+}
+
 function extractSupplierInvoiceData(rawText, catalog = []) {
   const text = stripNoise(rawText || "");
   const quality_ok = text.length >= 80 && /[A-Za-z]/.test(text);
@@ -464,9 +471,13 @@ async function confirmSupplierInvoiceExtraction(payload, pharmacyId) {
     const expiry_date = normalizeExpiry(row.expiry_date || item.expiry_date || "");
     const quantity = Number(row.quantity ?? item.quantity ?? 0);
     const free_quantity = Number(row.free_quantity ?? item.free_quantity ?? 0);
+    const units_per_pack = Number(row.units_per_pack ?? item.units_per_pack ?? 1);
     const unit_cost = Number(row.purchase_rate ?? item.purchase_rate ?? 0);
-    const selling_price = Number(row.mrp ?? item.mrp ?? 0);
+    const mrp = Number(row.mrp ?? item.mrp ?? 0);
+    const selling_price = mrp / units_per_pack;
     const gst_percentage = Number(row.gst_percentage ?? item.gst_percentage ?? 0);
+    const hsn = row.hsn ?? item.hsn ?? "";
+    const amount = row.amount ?? item.amount ?? null;
 
     if (!batch_no) {
       throw new Error(`Row for ${medicine_name} is missing a batch number.`);
@@ -474,16 +485,19 @@ async function confirmSupplierInvoiceExtraction(payload, pharmacyId) {
     if (!expiry_date || Number.isNaN(new Date(expiry_date).getTime())) {
       throw new Error(`Row for ${medicine_name} has an invalid expiry date.`);
     }
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new Error(`Row for ${medicine_name} has an invalid quantity.`);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error(`Row for ${medicine_name} has an invalid invoice quantity.`);
     }
-    if (!Number.isFinite(free_quantity) || free_quantity < 0) {
+    if (!Number.isInteger(free_quantity) || free_quantity < 0) {
       throw new Error(`Row for ${medicine_name} has an invalid free quantity.`);
+    }
+    if (!Number.isInteger(units_per_pack) || units_per_pack <= 0) {
+      throw new Error(`Row for ${medicine_name} has invalid Units per Pack; it must be a positive whole number.`);
     }
     if (!Number.isFinite(unit_cost) || unit_cost <= 0) {
       throw new Error(`Row for ${medicine_name} has an invalid purchase rate.`);
     }
-    if (!Number.isFinite(selling_price) || selling_price <= 0) {
+    if (!Number.isFinite(mrp) || mrp <= 0) {
       throw new Error(`Row for ${medicine_name} has an invalid MRP.`);
     }
     if (!Number.isFinite(gst_percentage) || gst_percentage < 0 || gst_percentage > 100) {
@@ -519,12 +533,27 @@ async function confirmSupplierInvoiceExtraction(payload, pharmacyId) {
       batch_no,
       expiry_date,
       quantity,
+      free_quantity,
+      units_per_pack,
       unit_cost,
       selling_price,
+      ocr_snapshot: {
+        medicine_name: row.medicine_name ?? item.medicine_name ?? null,
+        batch_number: row.batch_number ?? item.batch_number ?? null,
+        expiry_date: row.expiry_date ?? item.expiry_date ?? null,
+        quantity: row.quantity ?? item.quantity ?? null,
+        free_quantity: row.free_quantity ?? item.free_quantity ?? null,
+        units_per_pack: row.units_per_pack ?? item.units_per_pack ?? 1,
+        mrp: row.mrp ?? item.mrp ?? null,
+        purchase_rate: row.purchase_rate ?? item.purchase_rate ?? null,
+        gst_percentage: row.gst_percentage ?? item.gst_percentage ?? null,
+        hsn: row.hsn ?? item.hsn ?? null,
+        amount: row.amount ?? item.amount ?? null,
+      },
       min_stock: 5,
       location: "",
-      is_narcotic: Boolean(row.is_narcotic ?? item.is_narcotic ?? medicine.is_narcotic ?? false),
-      is_schedule_h1: Boolean(row.is_schedule_h1 ?? item.is_schedule_h1 ?? medicine.is_schedule_h1 ?? false),
+      is_narcotic: classificationValue({ is_narcotic: row.is_narcotic ?? item.is_narcotic }, "is_narcotic", medicine),
+      is_schedule_h1: classificationValue({ is_schedule_h1: row.is_schedule_h1 ?? item.is_schedule_h1 }, "is_schedule_h1", medicine),
       inventory_batch: existingInventoryBatch,
     });
   }

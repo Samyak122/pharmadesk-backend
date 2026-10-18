@@ -1,6 +1,9 @@
 const { Op } = require("sequelize");
 const Inventory = require("../models/Inventory");
 const Medicine = require("../models/Medicine");
+const PurchaseItem = require("../models/PurchaseItem");
+const Purchase = require("../models/Purchase");
+const Supplier = require("../models/Supplier");
 
 function calculateBatchMetrics(batch) {
   const quantity = Number(batch?.quantity ?? 0);
@@ -70,17 +73,48 @@ async function listInventory(filters = {}) {
     };
   }
 
-  return Inventory.findAll({
+  const batches = await Inventory.findAll({
     where,
     include: [
       {
         model: Medicine,
         as: "medicine",
-        attributes: ["medicine_id", "medicine_name", "manufacturer", "composition"],
+        attributes: ["medicine_id", "medicine_name", "manufacturer", "composition", "is_narcotic", "is_schedule_h1"],
       },
+      ...(filters.includeSuppliers === false ? [] : [{
+        model: PurchaseItem,
+        as: "purchaseItems",
+        attributes: ["purchase_item_id"],
+        required: false,
+        where: { pharmacy_id: filters.pharmacyId },
+        include: [{
+          model: Purchase,
+          as: "purchase",
+          attributes: ["purchase_id"],
+          required: false,
+          where: { pharmacy_id: filters.pharmacyId },
+          include: [{
+            model: Supplier,
+            as: "supplier",
+            attributes: ["supplier_id", "supplier_name"],
+            required: false,
+            where: { pharmacy_id: filters.pharmacyId },
+          }],
+        }],
+      }]),
     ],
     order: [["expiry_date", "ASC"], ["quantity", "DESC"]],
     raw: false,
+  });
+
+  return batches.map((batch) => {
+    const result = batch.toJSON();
+    const supplierNames = [...new Set((result.purchaseItems || [])
+      .map((item) => item.purchase?.supplier?.supplier_name)
+      .filter(Boolean))];
+    delete result.purchaseItems;
+    result.supplier_name = supplierNames.length ? supplierNames.join(", ") : "Not specified";
+    return result;
   });
 }
 
@@ -114,7 +148,7 @@ async function searchStock(query, pharmacyId) {
         [Op.iLike]: `%${query}%`,
       },
     },
-    attributes: ["medicine_id", "medicine_name", "manufacturer", "composition"],
+    attributes: ["medicine_id", "medicine_name", "manufacturer", "composition", "is_narcotic", "is_schedule_h1"],
     raw: true,
   });
 
@@ -150,8 +184,11 @@ async function searchStock(query, pharmacyId) {
     batch_no: batch.batch_no,
     expiry_date: batch.expiry_date,
     quantity: batch.quantity,
+    units_per_pack: batch.units_per_pack,
     selling_price: batch.selling_price,
     location: batch.location,
+    is_narcotic: batch.medicine?.is_narcotic,
+    is_schedule_h1: batch.medicine?.is_schedule_h1,
   }));
 }
 

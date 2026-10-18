@@ -56,6 +56,95 @@ function allocateBatchesForInvoice(item, availableBatches = []) {
   return allocations;
 }
 
+function normalizeSale(item) {
+  const quantity = Number(item.quantity || 0);
+  const hasUnitBreakdown = item.sale_unit !== undefined
+    || item.pack_quantity !== undefined
+    || item.loose_quantity !== undefined;
+
+  if (!hasUnitBreakdown) {
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("Each invoice item requires medicine_id and a positive whole-number quantity.");
+    }
+    return { quantity, pack_quantity: 0, loose_quantity: quantity, units_per_pack: 1, usesPacks: false };
+  }
+
+  const packQuantity = Number(item.pack_quantity || 0);
+  const looseQuantity = Number(item.loose_quantity || 0);
+  const unitsPerPack = Number(item.units_per_pack || 0);
+  if (!Number.isInteger(packQuantity) || packQuantity < 0 || !Number.isInteger(looseQuantity) || looseQuantity < 0) {
+    throw new Error("Pack and loose quantities must be non-negative whole numbers.");
+  }
+  if (!Number.isInteger(unitsPerPack) || unitsPerPack <= 0) {
+    throw new Error("Units per Pack must be a positive whole number.");
+  }
+  if (item.sale_unit === "pack" && (packQuantity <= 0 || looseQuantity !== 0)) {
+    throw new Error("Full Pack/Strip sales require a positive pack quantity and no loose quantity.");
+  }
+  if (item.sale_unit === "loose" && (looseQuantity <= 0 || packQuantity !== 0)) {
+    throw new Error("Loose sales require a positive individual-unit quantity and no pack quantity.");
+  }
+  if (item.sale_unit === "mixed" && packQuantity + looseQuantity <= 0) {
+    throw new Error("Mixed sales require at least one pack or loose unit.");
+  }
+
+  const calculatedQuantity = packQuantity * unitsPerPack + looseQuantity;
+  if (calculatedQuantity <= 0 || quantity !== calculatedQuantity) {
+    throw new Error("Invoice quantity must equal packs × Units per Pack plus loose units.");
+  }
+  return {
+    quantity: calculatedQuantity,
+    pack_quantity: packQuantity,
+    loose_quantity: looseQuantity,
+    units_per_pack: unitsPerPack,
+    usesPacks: packQuantity > 0,
+  };
+}
+
+function allocateBatchesForSale(sale, availableBatches = []) {
+  const allocations = new Map();
+  let packsRemaining = sale.pack_quantity;
+  let looseRemaining = sale.loose_quantity;
+
+  if (sale.usesPacks) {
+    for (const batch of availableBatches) {
+      if (Number(batch.units_per_pack || 1) !== sale.units_per_pack) continue;
+      const available = Number(batch.quantity || 0);
+      const packsFromBatch = Math.min(Math.floor(available / sale.units_per_pack), packsRemaining);
+      if (!packsFromBatch) continue;
+      allocations.set(batch, {
+        quantity: packsFromBatch * sale.units_per_pack,
+        pack_quantity: packsFromBatch,
+        loose_quantity: 0,
+      });
+      packsRemaining -= packsFromBatch;
+    }
+    if (packsRemaining > 0) {
+      throw new Error(`Insufficient full-pack stock for medicine ${sale.medicine_id}.`);
+    }
+  }
+
+  for (const batch of availableBatches) {
+    if (sale.usesPacks && Number(batch.units_per_pack || 1) !== sale.units_per_pack) continue;
+    const alreadyAllocated = allocations.get(batch)?.quantity || 0;
+    const available = Number(batch.quantity || 0) - alreadyAllocated;
+    const looseFromBatch = Math.min(available, looseRemaining);
+    if (!looseFromBatch) continue;
+    const allocation = allocations.get(batch) || { quantity: 0, pack_quantity: 0, loose_quantity: 0 };
+    allocation.quantity += looseFromBatch;
+    allocation.loose_quantity += looseFromBatch;
+    allocations.set(batch, allocation);
+    looseRemaining -= looseFromBatch;
+    if (!looseRemaining) break;
+  }
+
+  if (looseRemaining > 0) {
+    throw new Error(`Insufficient stock for medicine ${sale.medicine_id}.`);
+  }
+
+  return [...allocations.entries()].map(([batch, allocation]) => ({ batch, ...allocation }));
+}
+
 async function createInvoice(payload, pharmacyId) {
   const {
     customer_id,
@@ -72,6 +161,7 @@ async function createInvoice(payload, pharmacyId) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("At least one invoice item is required.");
   }
+  const normalizedItems = items.map((item) => ({ ...item, ...normalizeSale(item) }));
 
   if (customer_id) {
     const customer = await Customer.findOne({ where: { customer_id, pharmacy_id: pharmacyId } });
@@ -88,7 +178,7 @@ async function createInvoice(payload, pharmacyId) {
     throw new Error("Invoice number already exists in your pharmacy.");
   }
 
-  const totals = calculateBillTotals(items, gst_percent, discount_amount);
+  const totals = calculateBillTotals(normalizedItems, gst_percent, discount_amount);
   const transaction = await sequelize.transaction();
 
   try {
@@ -110,9 +200,9 @@ async function createInvoice(payload, pharmacyId) {
 
     const createdItems = [];
 
-    for (const item of items) {
+    for (const item of normalizedItems) {
       const medicineId = item.medicine_id;
-      const requestedQty = Number(item.quantity || 0);
+      const requestedQty = item.quantity;
       if (!medicineId || requestedQty <= 0) {
         throw new Error("Each invoice item requires medicine_id and a positive quantity.");
       }
@@ -122,7 +212,7 @@ async function createInvoice(payload, pharmacyId) {
         throw new Error(`Medicine ${medicineId} not found.`);
       }
 
-      const availableBatches = await Inventory.findAll({
+      let availableBatches = await Inventory.findAll({
         where: {
           medicine_id: medicineId,
           pharmacy_id: pharmacyId,
@@ -132,12 +222,16 @@ async function createInvoice(payload, pharmacyId) {
         order: [["expiry_date", "ASC"]],
         transaction,
       });
+      const sale = { ...item, medicine_id: medicineId };
+      if (sale.usesPacks) {
+        availableBatches = availableBatches.filter((batch) => Number(batch.units_per_pack || 1) === sale.units_per_pack);
+      }
 
       if (availableBatches.length === 0) {
         throw new Error(`No available stock for medicine ${medicineId}.`);
       }
 
-      const allocations = allocateBatchesForInvoice(item, availableBatches);
+      const allocations = allocateBatchesForSale(sale, availableBatches);
       const invoiceItemPayloads = [];
 
       for (const allocation of allocations) {
@@ -153,6 +247,9 @@ async function createInvoice(payload, pharmacyId) {
           stock_id: batch.stock_id,
           pharmacy_id: pharmacyId,
           quantity: quantityFromBatch,
+          pack_quantity: allocation.pack_quantity,
+          loose_quantity: allocation.loose_quantity,
+          units_per_pack: sale.units_per_pack,
           unit_price: unitPrice,
           total_price: totalPrice,
           is_narcotic: Boolean(medicine?.is_narcotic ?? item.is_narcotic ?? false),
@@ -253,6 +350,7 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("At least one invoice item is required.");
   }
+  const normalizedItems = items.map((item) => ({ ...item, ...normalizeSale(item) }));
 
   if (customer_id) {
     const customer = await Customer.findOne({ where: { customer_id, pharmacy_id: pharmacyId } });
@@ -278,20 +376,26 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
     throw new Error("Invoice number already exists in your pharmacy.");
   }
 
-  const totals = calculateBillTotals(items, gst_percent, discount_amount);
+  const totals = calculateBillTotals(normalizedItems, gst_percent, discount_amount);
   const transaction = await sequelize.transaction();
 
   try {
-    const priorItems = await InvoiceItem.findAll({ where: { invoice_id: invoiceId }, transaction });
+    const priorItems = await InvoiceItem.findAll({
+      where: { invoice_id: invoiceId, pharmacy_id: pharmacyId },
+      transaction,
+    });
 
     for (const item of priorItems) {
-      const batch = await Inventory.findByPk(item.stock_id, { transaction });
+      const batch = await Inventory.findOne({
+        where: { stock_id: item.stock_id, pharmacy_id: pharmacyId },
+        transaction,
+      });
       if (batch) {
         await batch.update({ quantity: Number(batch.quantity || 0) + Number(item.quantity || 0) }, { transaction });
       }
     }
 
-    await InvoiceItem.destroy({ where: { invoice_id: invoiceId }, transaction });
+    await InvoiceItem.destroy({ where: { invoice_id: invoiceId, pharmacy_id: pharmacyId }, transaction });
 
     await existingInvoice.update(
       {
@@ -310,9 +414,9 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
 
     const savedItems = [];
 
-    for (const item of items) {
+    for (const item of normalizedItems) {
       const medicineId = item.medicine_id;
-      const requestedQty = Number(item.quantity || 0);
+      const requestedQty = item.quantity;
       if (!medicineId || requestedQty <= 0) {
         throw new Error("Each invoice item requires medicine_id and a positive quantity.");
       }
@@ -322,7 +426,7 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
         throw new Error(`Medicine ${medicineId} not found.`);
       }
 
-      const availableBatches = await Inventory.findAll({
+      let availableBatches = await Inventory.findAll({
         where: {
           medicine_id: medicineId,
           pharmacy_id: pharmacyId,
@@ -332,12 +436,16 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
         order: [["expiry_date", "ASC"]],
         transaction,
       });
+      const sale = { ...item, medicine_id: medicineId };
+      if (sale.usesPacks) {
+        availableBatches = availableBatches.filter((batch) => Number(batch.units_per_pack || 1) === sale.units_per_pack);
+      }
 
       if (availableBatches.length === 0) {
         throw new Error(`No available stock for medicine ${medicineId}.`);
       }
 
-      const allocations = allocateBatchesForInvoice(item, availableBatches);
+      const allocations = allocateBatchesForSale(sale, availableBatches);
       const invoiceItemPayloads = [];
 
       for (const allocation of allocations) {
@@ -353,6 +461,9 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
           stock_id: batch.stock_id,
           pharmacy_id: pharmacyId,
           quantity: quantityFromBatch,
+          pack_quantity: allocation.pack_quantity,
+          loose_quantity: allocation.loose_quantity,
+          units_per_pack: sale.units_per_pack,
           unit_price: unitPrice,
           total_price: totalPrice,
           is_narcotic: Boolean(medicine?.is_narcotic ?? item.is_narcotic ?? false),
@@ -380,6 +491,8 @@ async function updateInvoice(invoiceId, payload, pharmacyId) {
 module.exports = {
   calculateBillTotals,
   allocateBatchesForInvoice,
+  normalizeSale,
+  allocateBatchesForSale,
   createInvoice,
   listInvoices,
   getInvoiceById,

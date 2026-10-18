@@ -27,12 +27,21 @@ const Inventory = sequelize.define(
       type: DataTypes.DATEONLY,
       allowNull: false,
     },
+    // Inventory quantity and costs are tracked per individual saleable unit.
     quantity: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
       validate: {
         min: 0,
+      },
+    },
+    units_per_pack: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+      validate: {
+        min: 1,
       },
     },
     unit_cost: {

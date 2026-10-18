@@ -15,6 +15,15 @@ test('scales cost by quantity and supports different batch costs', () => {
   assert.deepEqual(result, { sales: 200, cost: 130, profit: 70 });
 });
 
+test('calculates profit in individual units after pack conversion', () => {
+  const result = calculateFinancials([{
+    total_amount: 240,
+    gst_amount: 0,
+    items: [{ quantity: 12, inventoryBatch: { unit_cost: 15 } }],
+  }]);
+  assert.deepEqual(result, { sales: 240, cost: 180, profit: 60 });
+});
+
 test('discount and GST reduce profit without changing final sales', () => {
   const result = calculateFinancials([{ total_amount: 95, gst_amount: 5, discount_amount: 10, items: [{ quantity: 1, inventoryBatch: { unit_cost: 60 } }] }]);
   assert.deepEqual(result, { sales: 95, cost: 60, profit: 30 });

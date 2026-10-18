@@ -75,3 +75,18 @@ exports.createMedicine = async (req, res) => {
     });
   }
 };
+
+exports.updateClassification = async (req, res) => {
+  try {
+    const medicine = await Medicine.findByPk(Number(req.params.medicine_id));
+    if (!medicine) {
+      return res.status(404).json({ message: "Medicine not found" });
+    }
+
+    await medicine.update(req.body);
+    return res.json(medicine);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Unable to update medicine classification" });
+  }
+};

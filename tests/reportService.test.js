@@ -15,6 +15,9 @@ test('buildSalesRows flattens invoice items into detailed sales rows', () => {
       items: [
         {
           quantity: 2,
+          pack_quantity: 0,
+          loose_quantity: 2,
+          units_per_pack: 10,
           unit_price: 50,
           total_price: 100,
           inventoryBatch: {
@@ -32,5 +35,7 @@ test('buildSalesRows flattens invoice items into detailed sales rows', () => {
   assert.equal(rows[0].medicine_name, 'Paracetamol');
   assert.equal(rows[0].batch_no, 'B1');
   assert.equal(rows[0].quantity, 2);
+  assert.equal(rows[0].loose_quantity, 2);
+  assert.equal(rows[0].units_per_pack, 10);
   assert.equal(rows[0].invoice_total, 120);
 });

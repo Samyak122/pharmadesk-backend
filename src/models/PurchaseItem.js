@@ -28,10 +28,25 @@ const PurchaseItem = sequelize.define(
         key: "stock_id",
       },
     },
+    // Purchase quantity remains the invoice's pack count; inventory conversion is separate.
     quantity: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+    },
+    free_quantity: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    units_per_pack: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
+    },
+    ocr_snapshot: {
+      type: DataTypes.JSON,
+      allowNull: true,
     },
     unit_cost: {
       type: DataTypes.DECIMAL(12, 2),
@@ -66,6 +81,11 @@ PurchaseItem.belongsTo(Purchase, {
 PurchaseItem.belongsTo(Inventory, {
   foreignKey: "stock_id",
   as: "inventoryBatch",
+});
+
+Inventory.hasMany(PurchaseItem, {
+  foreignKey: "stock_id",
+  as: "purchaseItems",
 });
 
 Purchase.hasMany(PurchaseItem, {

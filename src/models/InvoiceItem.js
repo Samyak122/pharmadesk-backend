@@ -28,10 +28,26 @@ const InvoiceItem = sequelize.define(
         key: "stock_id",
       },
     },
+    // Invoice quantity is the individual-unit total used for stock, price, GST, and reports.
     quantity: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+    },
+    pack_quantity: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    loose_quantity: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    units_per_pack: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 1,
     },
     unit_price: {
       type: DataTypes.DECIMAL(12, 2),

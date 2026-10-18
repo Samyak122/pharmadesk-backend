@@ -33,6 +33,7 @@ const inventorySchema = Joi.object({
   batch_no: Joi.string().trim().min(1).max(100).required(),
   expiry_date: Joi.string().required(),
   quantity: nonNegativeIntSchema.required(),
+  units_per_pack: positiveIntSchema.optional().default(1),
   unit_cost: Joi.number().min(0).required(),
   selling_price: Joi.number().min(0).required(),
   min_stock: nonNegativeIntSchema.optional(),
@@ -43,10 +44,13 @@ const inventoryUpdateSchema = Joi.object({
   batch_no: Joi.string().trim().min(1).max(100).optional(),
   expiry_date: Joi.string().optional(),
   quantity: nonNegativeIntSchema.optional(),
+  units_per_pack: positiveIntSchema.optional(),
   unit_cost: Joi.number().min(0).optional(),
   selling_price: Joi.number().min(0).optional(),
   min_stock: nonNegativeIntSchema.optional(),
   location: Joi.string().trim().max(100).optional(),
+  is_narcotic: Joi.boolean().optional(),
+  is_schedule_h1: Joi.boolean().optional(),
 });
 
 const customerSchema = Joi.object({
@@ -62,10 +66,15 @@ const purchaseItemSchema = Joi.object({
   batch_no: Joi.string().trim().min(1).max(100).required(),
   expiry_date: Joi.string().required(),
   quantity: positiveIntSchema.required(),
+  free_quantity: nonNegativeIntSchema.optional().default(0),
+  units_per_pack: positiveIntSchema.optional().default(1),
   unit_cost: Joi.number().min(0).required(),
   selling_price: Joi.number().min(0).required(),
   min_stock: nonNegativeIntSchema.optional(),
   location: Joi.string().trim().max(100).optional(),
+  ocr_snapshot: Joi.object().optional(),
+  is_narcotic: Joi.boolean().optional(),
+  is_schedule_h1: Joi.boolean().optional(),
 });
 
 const purchaseSchema = Joi.object({
@@ -98,11 +107,27 @@ const settingsSchema = Joi.object({
   timezone: Joi.string().trim().max(100).optional(),
 });
 
+const createMedicineSchema = Joi.object({
+  medicine_name: Joi.string().trim().min(1).max(255).required(),
+  manufacturer: Joi.string().trim().allow("").optional(),
+  composition: Joi.string().allow("").optional(),
+  category: Joi.string().trim().allow("").optional(),
+  hsn_code: Joi.string().trim().allow("").optional(),
+  gst_percent: Joi.number().min(0).max(100).optional(),
+  barcode: Joi.string().trim().allow("").optional(),
+  is_narcotic: Joi.boolean().optional(),
+  is_schedule_h1: Joi.boolean().optional(),
+});
+
 const invoiceItemSchema = Joi.object({
   medicine_id: positiveIntSchema.required(),
   quantity: positiveIntSchema.required(),
   unit_price: Joi.number().min(0).required(),
   discount_amount: Joi.number().min(0).optional(),
+  sale_unit: Joi.string().valid("pack", "loose", "mixed").optional(),
+  pack_quantity: nonNegativeIntSchema.optional(),
+  loose_quantity: nonNegativeIntSchema.optional(),
+  units_per_pack: positiveIntSchema.optional(),
 });
 
 const billingSchema = Joi.object({
@@ -116,6 +141,11 @@ const billingSchema = Joi.object({
   notes: Joi.string().trim().max(500).optional(),
   items: Joi.array().items(invoiceItemSchema).min(1).required(),
 });
+
+const medicineClassificationSchema = Joi.object({
+  is_narcotic: Joi.boolean().optional(),
+  is_schedule_h1: Joi.boolean().optional(),
+}).or("is_narcotic", "is_schedule_h1");
 
 function validate(schema, source = "body") {
   return (req, res, next) => {
@@ -148,7 +178,9 @@ module.exports = {
   customerSchema,
   purchaseSchema,
   settingsSchema,
+  createMedicineSchema,
   billingSchema,
+  medicineClassificationSchema,
   positiveIntSchema,
   phoneSchema,
 };
