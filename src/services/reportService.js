@@ -19,6 +19,16 @@ function calculateInvoiceGstPercent(invoice) {
   return Number(((gstAmount / taxableAmount) * 100).toFixed(2));
 }
 
+function getDrugClassificationLabel(item = {}) {
+  const isScheduleH1 = Boolean(item.is_schedule_h1 ?? item.medicine?.is_schedule_h1 ?? item.inventoryBatch?.medicine?.is_schedule_h1 ?? false);
+  const isNarcotic = Boolean(item.is_narcotic ?? item.medicine?.is_narcotic ?? item.inventoryBatch?.medicine?.is_narcotic ?? false);
+
+  if (isScheduleH1 && isNarcotic) return "Schedule H1, Narcotic";
+  if (isScheduleH1) return "Schedule H1";
+  if (isNarcotic) return "Narcotic";
+  return "Regular";
+}
+
 function buildSalesRows(invoices = []) {
   return invoices.flatMap((invoice) => {
     const gstPercent = calculateInvoiceGstPercent(invoice);
@@ -34,6 +44,7 @@ function buildSalesRows(invoices = []) {
         customer_name: invoice.customer?.customer_name || "Walk-in",
         customer_phone: invoice.customer?.phone || "",
         medicine_name: item.inventoryBatch?.medicine?.medicine_name || item.medicine_name || "Unknown",
+        drug_classification: getDrugClassificationLabel(item),
         batch_no: item.inventoryBatch?.batch_no || item.batch_no || "",
         expiry_date: item.inventoryBatch?.expiry_date || item.expiry_date || "",
         quantity: Number(item.quantity || 0),
@@ -107,7 +118,7 @@ async function getInventoryReport(pharmacyId) {
       {
         model: Medicine,
         as: "medicine",
-        attributes: ["medicine_id", "medicine_name", "manufacturer"],
+        attributes: ["medicine_id", "medicine_name", "manufacturer", "is_narcotic", "is_schedule_h1"],
       },
     ],
     order: [["expiry_date", "ASC"]],
@@ -116,6 +127,7 @@ async function getInventoryReport(pharmacyId) {
   return batches.map((batch) => ({
     stock_id: batch.stock_id,
     medicine_name: batch.medicine?.medicine_name || "Unknown",
+    drug_classification: getDrugClassificationLabel(batch),
     batch_no: batch.batch_no,
     expiry_date: batch.expiry_date,
     quantity: batch.quantity,
@@ -196,6 +208,7 @@ async function getBatchReport(pharmacyId) {
   return batches.map((batch) => ({
     batch_no: batch.batch_no,
     medicine_name: batch.medicine?.medicine_name || "Unknown",
+    drug_classification: getDrugClassificationLabel(batch),
     expiry_date: batch.expiry_date,
     quantity: batch.quantity,
     units_per_pack: batch.units_per_pack,
